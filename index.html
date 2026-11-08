@@ -1,0 +1,1382 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ギタートレーナー</title>
+<meta name="description" content="MIDIギターをつないで、指板の音・音名・五線譜・TAB譜を練習。弦ごとのMIDIチャンネルで、どの弦のどのフレットを弾いたかまで判定します。">
+<link rel="canonical" href="https://guitar-trainer.habatakijuku.com/">
+<meta property="og:title" content="ギタートレーナー">
+<meta property="og:description" content="MIDIギターをつないで、指板の音・音名・五線譜・TAB譜を練習。弦ごとのMIDIチャンネルで、どの弦のどのフレットを弾いたかまで判定します。">
+<meta property="og:url" content="https://guitar-trainer.habatakijuku.com/">
+<meta property="og:type" content="website">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='19' y='2' width='4' height='14' rx='1' transform='rotate(35 21 9)' fill='%232b2620'/%3E%3Ccircle cx='12' cy='22' r='8' fill='%232c6e63'/%3E%3Ccircle cx='17' cy='16' r='5.5' fill='%232c6e63'/%3E%3Ccircle cx='13' cy='21' r='2.6' fill='%23fffdf8'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/vexflow@4.2.2/build/cjs/vexflow.js"></script>
+<style>
+:root {
+  --bg: #f4efe6;
+  --paper: #fffdf8;
+  --ink: #2b2620;
+  --muted: #7a6f62;
+  --line: #e2d9ca;
+  --accent: #2c6e63;
+  --accent-soft: #dcefeb;
+  --ok: #2e8b57;
+  --ng: #c8433a;
+  --hint: #d9a21b;
+  --wood: #7a5230;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--ink);
+  font-family: "Zen Maru Gothic", "Hiragino Maru Gothic ProN", "Yu Gothic", sans-serif;
+  line-height: 1.6;
+}
+header {
+  max-width: 960px; margin: 0 auto; padding: 20px 16px 12px;
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; justify-content: space-between;
+}
+.brand { display: flex; align-items: center; gap: 10px; }
+.brand svg { width: 40px; height: 40px; flex: none; }
+h1 { font-size: 1.5rem; margin: 0; letter-spacing: .05em; line-height: 1.2; }
+.tagline { margin: 0; font-size: .8rem; color: var(--muted); }
+.midi-status {
+  font-size: .8rem; padding: 3px 12px; border-radius: 999px; max-width: 100%;
+  background: #eee6d8; color: var(--muted);
+}
+.midi-status::before { content: "●"; margin-right: 5px; font-size: .7em; vertical-align: .15em; }
+.midi-status.on { background: #dcefe3; color: var(--ok); }
+.midi-status.off { background: #f6dfdc; color: var(--ng); }
+.midi-status details { display: inline; }
+.midi-status summary { display: inline; font-weight: 500; cursor: pointer; }
+.midi-status summary::after { content: " ▾"; }
+.midi-status details[open] summary::after { content: " ▴"; }
+.midi-status details p { margin: 4px 0 2px; color: var(--ink); line-height: 1.5; }
+.midi-status:has(details[open]) { border-radius: 12px; }
+main { max-width: 960px; margin: 0 auto; padding: 0 16px 32px; display: grid; gap: 16px; }
+main > * { min-width: 0; }
+.card { background: var(--paper); border: 1px solid var(--line); border-radius: 14px; padding: 16px; }
+.stage { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; justify-items: center; }
+.stage > * { max-width: 100%; }
+button {
+  font: inherit; cursor: pointer; border: 1px solid var(--accent); background: var(--accent); color: #fff;
+  border-radius: 10px; padding: 6px 16px;
+}
+button.ghost { background: transparent; color: var(--accent); }
+button.small { padding: 2px 10px; font-size: .85rem; }
+button:disabled { opacity: .45; cursor: default; }
+button:focus-visible, select:focus-visible, input:focus-visible { outline: 3px solid var(--hint); outline-offset: 2px; }
+[hidden], .mode-off { display: none !important; }
+.mode-seg { width: 100%; max-width: 480px; }
+.seg { display: flex; border: 1px solid var(--accent); border-radius: 10px; overflow: hidden; }
+.seg button { flex: 1; border: 0; border-radius: 0; background: transparent; color: var(--accent); padding: 4px 8px; }
+.seg button[aria-pressed="true"] { background: var(--accent); color: #fff; }
+.stage-bar {
+  display: flex; gap: 6px; width: 100%; overflow-x: auto; padding: 2px 2px 6px;
+  scrollbar-width: thin; scroll-snap-type: x proximity;
+}
+.stage-bar > :first-child { margin-left: auto; }
+.stage-bar > :last-child { margin-right: auto; }
+.stage-bar button {
+  flex: none; padding: 3px 12px; font-size: .85rem; background: transparent; color: var(--accent);
+  border-color: var(--line); border-radius: 999px; white-space: nowrap; scroll-snap-align: center;
+  display: grid; justify-items: center; line-height: 1.3;
+}
+.stage-bar button b { font-weight: 700; margin-right: 4px; opacity: .6; }
+.stage-bar button .stars { font-size: .7rem; letter-spacing: .05em; color: var(--hint); }
+.stage-bar button[aria-pressed="true"] { background: var(--accent); color: #fff; border-color: var(--accent); }
+.stage-bar button[aria-pressed="true"] b { opacity: .85; }
+.stage-bar button[aria-pressed="true"] .stars { color: #ffe08a; }
+.stage-info { font-size: .9rem; color: var(--muted); text-align: center; }
+.stage-info b { color: var(--ink); }
+.prompt { font-size: 1.1rem; text-align: center; min-height: 1.6em; }
+.prompt .big { font-size: 2.4rem; font-weight: 700; color: var(--accent); margin: 0 .1em; line-height: 1.2; }
+.prompt small { display: block; font-size: .85rem; color: var(--muted); }
+.score-wrap { width: 100%; background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 6px 8px; }
+#score { width: 100%; display: grid; justify-items: center; }
+#score svg { display: block; max-width: 100%; height: auto; }
+body[data-mode="staff"] #score svg { width: 240px; }
+.fb-wrap { width: 100%; overflow-x: auto; scrollbar-width: thin; }
+#fretboard svg { display: block; width: 100%; min-width: 620px; height: auto; user-select: none; -webkit-user-select: none; }
+.fb .hit { fill: transparent; cursor: pointer; }
+.fb .hit:hover { fill: rgba(44, 110, 99, .12); }
+.fb.noclick .hit { cursor: default; }
+.fb.noclick .hit:hover { fill: transparent; }
+.fb .mark circle { stroke: #fff; stroke-width: 2; }
+.fb .mark text { fill: #fff; font-size: 12px; font-weight: 700; text-anchor: middle; dominant-baseline: central; pointer-events: none; font-family: inherit; }
+.fb .mark { pointer-events: none; }
+.fb .mark.target circle { fill: var(--accent); }
+.fb .mark.target.pulse circle { animation: pulse 1.2s ease-in-out infinite; }
+@keyframes pulse { 50% { r: 14; } }
+.fb .mark.ok circle { fill: var(--ok); }
+.fb .mark.ng circle { fill: var(--ng); }
+.fb .mark.ans circle { fill: var(--hint); }
+.fb .mark.played circle { fill: #8a8174; }
+.fb .mark.next circle { fill: none; stroke: var(--accent); stroke-width: 3; stroke-dasharray: 4 3; }
+.note-btns { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; width: 100%; max-width: 560px; }
+.note-btns button { padding: 8px 2px; font-weight: 700; line-height: 1.2; background: #fff; color: var(--ink); border-color: var(--line); }
+.note-btns button.nat { border-color: var(--accent); }
+.note-btns button small { display: block; font-size: .7rem; color: var(--muted); font-weight: 500; }
+.note-btns button.right { background: var(--ok); color: #fff; border-color: var(--ok); }
+.note-btns button.wrong { background: var(--ng); color: #fff; border-color: var(--ng); }
+.status-line { display: flex; flex-wrap: wrap; gap: 4px 16px; justify-content: center; align-items: center; min-height: 2.1rem; }
+.count { font-size: 1.4rem; font-weight: 700; color: var(--accent); line-height: 1.2; }
+.count small { font-size: .9rem; color: var(--muted); font-weight: 500; }
+.combo { font-size: .95rem; color: var(--hint); font-weight: 700; }
+.feedback { font-size: 1.1rem; font-weight: 700; text-align: center; }
+.feedback.ok { color: var(--ok); }
+.feedback.good { color: #b07d00; }
+.feedback.ng { color: var(--ng); }
+.controls { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; align-items: center; }
+.bpm { display: flex; align-items: center; gap: 4px; }
+.bpm input { width: 4.2em; font: inherit; text-align: center; padding: 4px; border-radius: 8px; border: 1px solid var(--line); }
+.bpm button { padding: 4px 10px; }
+.bpm span { font-size: .85rem; color: var(--muted); }
+.result { display: grid; gap: 4px; justify-items: center; text-align: center; padding: 4px 0; }
+.result h2 { margin: 0; font-size: 1.4rem; }
+.result.clear h2 { color: var(--ok); }
+.result.fail h2 { color: var(--ng); }
+.result p { margin: 0; }
+.result .stars { font-size: 1.8rem; color: var(--hint); letter-spacing: .1em; }
+.result .sub { color: var(--muted); font-size: .9rem; }
+.heard { font-size: .85rem; color: var(--muted); min-height: 1.4em; text-align: center; }
+.kb-note { font-size: .8rem; color: var(--muted); text-align: center; margin: 0; }
+.stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; text-align: center; }
+.stat b { display: block; font-size: 1.4rem; }
+.stat span { font-size: .8rem; color: var(--muted); }
+.weak { margin-top: 10px; font-size: .9rem; color: var(--muted); text-align: center; }
+.weak strong { color: var(--ng); }
+details summary { cursor: pointer; font-weight: 700; }
+.help p, .help li { font-size: .9rem; }
+.help ul { padding-left: 1.2em; }
+.settings { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px 20px; }
+.settings h2 { grid-column: 1 / -1; font-size: 1rem; margin: 0; }
+.field { display: grid; gap: 4px; font-size: .9rem; align-content: start; }
+.field > span { color: var(--muted); }
+.field small { color: var(--muted); font-size: .8rem; }
+.field.wide { grid-column: 1 / -1; }
+select, .field input[type="number"] { font: inherit; padding: 4px 8px; border-radius: 8px; border: 1px solid var(--line); background: #fff; }
+.row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.row input[type="number"] { width: 6em; }
+.check { display: flex; gap: 6px; align-items: center; font-size: .9rem; }
+.monitor { font-size: .85rem; color: var(--ink); background: #f3eee5; border-radius: 8px; padding: 4px 8px; min-height: 1.8em; font-variant-numeric: tabular-nums; }
+footer { text-align: center; font-size: .8rem; color: var(--muted); padding: 0 16px 24px; }
+footer a { color: var(--accent); }
+@media (max-width: 560px) {
+  .stats { grid-template-columns: repeat(2, 1fr); }
+  h1 { font-size: 1.25rem; }
+  .brand svg { width: 32px; height: 32px; }
+  .prompt .big { font-size: 2rem; }
+  .note-btns { grid-template-columns: repeat(4, 1fr); }
+  .seg button { padding: 4px 2px; font-size: .85rem; }
+}
+</style>
+</head>
+<body data-mode="fret">
+<header>
+  <div class="brand">
+    <svg viewBox="0 0 32 32" aria-hidden="true"><rect x="19" y="2" width="4" height="14" rx="1" transform="rotate(35 21 9)" fill="#2b2620"/><circle cx="12" cy="22" r="8" fill="#2c6e63"/><circle cx="17" cy="16" r="5.5" fill="#2c6e63"/><circle cx="13" cy="21" r="2.6" fill="#fffdf8"/></svg>
+    <div>
+      <h1>ギタートレーナー</h1>
+      <p class="tagline">MIDIギターで、指板・五線譜・TAB譜を読む練習</p>
+    </div>
+  </div>
+  <div id="midiStatus" class="midi-status">MIDIを確認中…</div>
+</header>
+
+<main>
+  <section class="card stage" aria-label="練習">
+    <div class="seg mode-seg" id="modeSeg" role="group" aria-label="モード">
+      <button type="button" data-v="fret">指板</button>
+      <button type="button" data-v="name">音名</button>
+      <button type="button" data-v="staff">五線譜</button>
+      <button type="button" data-v="tab">TAB譜</button>
+    </div>
+    <div id="stageBar" class="stage-bar" role="group" aria-label="ステージ"></div>
+    <div id="stageInfo" class="stage-info" aria-live="polite"></div>
+    <div id="prompt" class="prompt" aria-live="polite"></div>
+    <div class="score-wrap" data-modes="staff tab"><div id="score" role="img" aria-label="楽譜"></div></div>
+    <div class="fb-wrap"><div id="fretboard"></div></div>
+    <div id="noteBtns" class="note-btns" data-modes="fret" role="group" aria-label="音名で答える"></div>
+    <div class="status-line">
+      <div id="count" class="count"></div>
+      <div id="combo" class="combo"></div>
+      <div id="feedback" class="feedback" aria-live="polite"></div>
+    </div>
+    <div id="result" class="result" aria-live="polite" hidden></div>
+    <div class="controls">
+      <button id="startBtn" type="button">▶ スタート（Enter）</button>
+      <button id="skipBtn" class="ghost" type="button" data-modes="fret name staff" hidden>答えを見る</button>
+      <button id="stopBtn" class="ghost" type="button" hidden>■ やめる（Esc）</button>
+      <button id="demoBtn" class="ghost" type="button" data-modes="tab">♪ お手本を聞く</button>
+    </div>
+    <div class="controls" data-modes="tab">
+      <div class="seg" id="tabPlaySeg" role="group" aria-label="TAB譜の弾き方">
+        <button type="button" data-v="order">順番に弾く</button>
+        <button type="button" data-v="tempo">テンポに合わせる</button>
+      </div>
+      <div class="bpm" id="bpmBox">
+        <button id="bpmDown" class="ghost" type="button" aria-label="テンポを下げる">−</button>
+        <input id="bpmInput" type="number" min="30" max="200" step="1" aria-label="テンポ（BPM）">
+        <button id="bpmUp" class="ghost" type="button" aria-label="テンポを上げる">＋</button>
+        <span>BPM</span>
+      </div>
+    </div>
+    <div id="heard" class="heard" aria-live="off"></div>
+    <p id="inputNote" class="kb-note"></p>
+  </section>
+
+  <section class="card" aria-label="成績">
+    <div id="stats" class="stats"></div>
+    <div id="weak" class="weak"></div>
+  </section>
+
+  <section class="card help">
+    <details>
+      <summary>ギターの楽譜の見方</summary>
+      <p><b>弦の番号</b>：いちばん細い（高い音の）弦が1弦、いちばん太い弦が6弦です。何も押さえない「開放弦」の音は、6弦から順に E・A・D・G・B・E（ミ・ラ・レ・ソ・シ・ミ）。</p>
+      <p><b>フレット</b>：1フレット進むごとに半音ずつ高くなります。12フレットで開放弦のちょうど1オクターブ上です。</p>
+      <p><b>五線譜</b>：ギターの楽譜は、読みやすいように実際の音より1オクターブ高く書きます。ト音記号の下の小さな「8」がその印です。このページの判定も、書いてある音の1オクターブ下（ギターで実際に鳴る音）で行います。</p>
+      <p><b>TAB譜</b>：6本の線が6本の弦（いちばん上が1弦）、数字が押さえるフレットです。0は開放弦。音の高さではなく「どこを押さえるか」を書いた楽譜です。</p>
+      <p><b>指板の図</b>：このページの図は、ギターを構えて上から見下ろした向きと同じく、上が1弦です（TAB譜と同じ並び）。</p>
+    </details>
+  </section>
+
+  <section class="card settings" aria-label="設定">
+    <h2>設定</h2>
+    <label class="field">
+      <span>弦の判定（MIDIチャンネル）</span>
+      <select id="chanSel">
+        <option value="asc">1弦＝ch1 … 6弦＝ch6（標準）</option>
+        <option value="desc">6弦＝ch1 … 1弦＝ch6</option>
+        <option value="asc11">1弦＝ch11 … 6弦＝ch16</option>
+        <option value="off">判定しない（音の高さだけ）</option>
+      </select>
+      <small>MIDIギターの多くは、弦ごとに別のチャンネルで送ります（モノ・モード）。下の確認欄で、弾いた弦とフレットが合っているか見てください。</small>
+    </label>
+    <div class="field">
+      <span>判定</span>
+      <label class="check"><input type="checkbox" id="strictStringChk">音名・五線譜で、弦まで合っているか見る</label>
+      <small>音名モードは指定の弦、五線譜モードはステージのポジションの範囲で弾けたかを見ます。オフなら音の高さだけで判定します（弦の判定が「しない」のときも高さだけ）。</small>
+      <label class="check"><input type="checkbox" id="octaveChk">オクターブ違いも正解にする</label>
+    </div>
+    <div class="field">
+      <span>弱い音を無視する（ベロシティ）</span>
+      <div class="row"><input id="velInput" type="number" min="1" max="100" step="1"><small>未満の音は数えない</small></div>
+      <small>弦に触れただけで出る小さな音（誤検出）を除きます。</small>
+    </div>
+    <div class="field">
+      <span>タイミングの補正（ms）</span>
+      <div class="row"><input id="latencyInput" type="number" min="-200" max="300" step="1"></div>
+      <small>「テンポに合わせる」で使います。MIDIギターは低い弦ほど音が届くのが遅れます。いつも「遅い」と出るなら、その分（例：30）を入れてください。</small>
+    </div>
+    <label class="field">
+      <span>音名の書き方</span>
+      <select id="namesSel">
+        <option value="cde">C D E（英語）</option>
+        <option value="doremi">ド レ ミ</option>
+      </select>
+    </label>
+    <div class="field">
+      <span>表示と音</span>
+      <label class="check"><input type="checkbox" id="leftyChk">指板を左利き用（左右反対）にする</label>
+      <label class="check"><input type="checkbox" id="midiSoundChk">MIDIで弾いた音もこのページで鳴らす</label>
+      <label class="row">音量 <input id="volInput" type="range" min="0" max="1" step="0.05"></label>
+    </div>
+    <div class="field wide">
+      <span>MIDIの確認</span>
+      <div id="midiMonitor" class="monitor">弾くと、ここにチャンネル・音・弦・フレットが出ます。</div>
+    </div>
+    <div class="field">
+      <span>記録</span>
+      <button id="resetBtn" class="ghost" type="button">成績の記録を消す</button>
+    </div>
+  </section>
+</main>
+
+<footer>MIDI入力は Chrome / Edge で使えます（Safari は非対応）。MIDIギターがなくても、指板の図をクリックすれば試せます。<br>ピアノは <a href="https://piano-trainer.habatakijuku.com/">読譜トレーナー</a>、ドラムは <a href="https://drum-trainer.habatakijuku.com/">ドラムトレーナー</a> へ。</footer>
+
+<script>
+'use strict';
+const VF = Vex.Flow;
+const $ = (id) => document.getElementById(id);
+
+// ---- 記録 ----
+const STORE_KEY = 'guitarTrainer_v1';
+const defaultStore = () => ({
+  settings: { chan: 'asc', strictString: true, octaveFree: false, minVel: 8, latency: 0, names: 'cde', lefty: false, midiSound: false, vol: 0.7, tabPlay: 'order', bpm: 70 },
+  stats: {}, best: {}, daily: { last: '', streak: 0, today: 0 }, total: { n: 0, ok: 0 },
+});
+const loadStore = () => {
+  const base = defaultStore();
+  try {
+    const raw = localStorage.getItem(STORE_KEY);
+    if (!raw) return base;
+    const d = JSON.parse(raw);
+    return {
+      ...base, ...d,
+      settings: { ...base.settings, ...(d.settings || {}) },
+      daily: { ...base.daily, ...(d.daily || {}) },
+      total: { ...base.total, ...(d.total || {}) },
+    };
+  } catch (e) {
+    console.warn('記録を読めませんでした。新しく始めます。', e);
+    return base;
+  }
+};
+let store = loadStore();
+const saveStore = () => {
+  try { localStorage.setItem(STORE_KEY, JSON.stringify(store)); }
+  catch (e) { console.warn('記録を保存できませんでした', e); }
+};
+const S = () => store.settings;
+
+// ---- 音の名前 ----
+const OPEN = { 1: 64, 2: 59, 3: 55, 4: 50, 5: 45, 6: 40 }; // 開放弦の MIDI 番号
+const STRINGS = [1, 2, 3, 4, 5, 6];
+const MAX_FRET = 12;
+const PC_SHARP = ['C', 'C♯', 'D', 'D♯', 'E', 'F', 'F♯', 'G', 'G♯', 'A', 'A♯', 'B'];
+const PC_FLAT = ['C', 'D♭', 'D', 'E♭', 'E', 'F', 'G♭', 'G', 'A♭', 'A', 'B♭', 'B'];
+const DOREMI = { C: 'ド', D: 'レ', E: 'ミ', F: 'ファ', G: 'ソ', A: 'ラ', B: 'シ' };
+const NAT_PC = { c: 0, d: 2, e: 4, f: 5, g: 7, a: 9, b: 11 };
+const isNatural = (pc) => [0, 2, 4, 5, 7, 9, 11].includes(pc);
+const pcName = (pc, flat = false) => {
+  const s = (flat ? PC_FLAT : PC_SHARP)[((pc % 12) + 12) % 12];
+  return S().names === 'doremi' ? s.replace(/[A-G]/, (m) => DOREMI[m]) : s;
+};
+const noteLabel = (midi, flat = false) => pcName(midi % 12, flat) + (Math.floor(midi / 12) - 1);
+const range = (a, b) => Array.from({ length: b - a + 1 }, (_, i) => a + i);
+const positionsOf = (midi, maxFret = MAX_FRET) => STRINGS
+  .map((s) => ({ s, f: midi - OPEN[s] }))
+  .filter((p) => p.f >= 0 && p.f <= maxFret);
+// VexFlow の音名（書くのは実音の1オクターブ上）
+const spell = (writtenMidi, flat) => {
+  const pc = writtenMidi % 12;
+  const oct = Math.floor(writtenMidi / 12) - 1;
+  const find = (p) => Object.keys(NAT_PC).find((k) => NAT_PC[k] === p);
+  if (isNatural(pc)) return { key: `${find(pc)}/${oct}`, acc: '' };
+  return flat ? { key: `${find(pc + 1)}b/${oct}`, acc: 'b' } : { key: `${find(pc - 1)}#/${oct}`, acc: '#' };
+};
+
+// ---- ステージ ----
+const QUESTIONS = 20;
+const LIMIT = { fret: 3000, name: 5000, staff: 4000 }; // 1問の目安（ms）
+const fretStage = (short, desc, strings, lo, hi, natural = false) => ({ short, desc, strings, lo, hi, natural });
+const FRET_STAGES = [
+  fretStage('開放弦', '何も押さえない6本の弦の音。6弦から E A D G B E です。', STRINGS, 0, 0),
+  fretStage('6・5弦', '6弦と5弦の0〜5フレットの、♯♭のない音（幹音）。', [6, 5], 0, 5, true),
+  fretStage('4・3弦', '4弦と3弦の0〜5フレットの幹音。', [4, 3], 0, 5, true),
+  fretStage('2・1弦', '2弦と1弦の0〜5フレットの幹音。', [2, 1], 0, 5, true),
+  fretStage('0〜5F', '全部の弦の0〜5フレット。♯♭の音も出ます。', STRINGS, 0, 5),
+  fretStage('5〜9F', '全部の弦の5〜9フレット。', STRINGS, 5, 9),
+  fretStage('9〜12F', '全部の弦の9〜12フレット。12フレットは開放弦と同じ音名です。', STRINGS, 9, 12),
+  fretStage('全体', '全部の弦の0〜12フレット。', STRINGS, 0, 12),
+];
+const nameStage = (short, desc, strings, natural) => ({ short, desc, strings, natural });
+const NAME_STAGES = [
+  nameStage('6弦', '6弦の上で、言われた音を探して弾きます（♯♭なし）。', [6], true),
+  nameStage('5弦', '5弦の上で、言われた音を探して弾きます。', [5], true),
+  nameStage('4・3弦', '4弦と3弦の幹音。', [4, 3], true),
+  nameStage('2・1弦', '2弦と1弦の幹音。', [2, 1], true),
+  nameStage('全弦', '全部の弦の幹音。', STRINGS, true),
+  nameStage('6・5弦♯♭', '6弦と5弦。♯♭の音も出ます。', [6, 5], false),
+  nameStage('全弦♯♭', '全部の弦。♯♭の音も出ます。', STRINGS, false),
+];
+const naturalsIn = (lo, hi) => range(lo, hi).filter((m) => isNatural(m % 12));
+const staffStage = (short, desc, notes, lo, hi) => ({ short, desc, notes, lo, hi });
+const STAFF_STAGES = [
+  staffStage('1〜3弦', 'ローポジション（0〜3フレット）の1〜3弦の音。', naturalsIn(55, 67), 0, 3),
+  staffStage('4〜6弦', 'ローポジションの4〜6弦の音。加線の多い低い音です。', naturalsIn(40, 53), 0, 3),
+  staffStage('ロー全部', 'ローポジションの全部の幹音。', naturalsIn(40, 67), 0, 4),
+  staffStage('♯♭あり', 'ローポジションで、♯♭の付いた音も出ます。', range(40, 68), 0, 4),
+  staffStage('5ポジション', '人さし指を5フレットに置く形（5〜8フレット）の幹音。', naturalsIn(45, 72), 5, 8),
+  staffStage('ハイポジション', '1〜3弦の高い音（12フレットの E まで）。', naturalsIn(60, 76), 0, 12),
+  staffStage('全音域', '0〜12フレットの全部の音。', range(40, 76), 0, 12),
+];
+const ph = (name, notes) => ({ name, notes });
+const TAB_STAGES = [
+  { short: '開放弦', desc: '左手は押さえず、右手で弾く弦を選ぶ練習。', phrases: [
+    ph('6弦から1弦へ', [[6, 0], [5, 0], [4, 0], [3, 0], [2, 0], [1, 0], [2, 0], [3, 0]]),
+    ph('高い3本', [[1, 0], [2, 0], [3, 0], [2, 0], [1, 0], [3, 0], [2, 0], [1, 0]]),
+    ph('1本とばし', [[6, 0], [4, 0], [5, 0], [3, 0], [4, 0], [2, 0], [3, 0], [1, 0]]),
+    ph('低い3本', [[5, 0], [4, 0], [3, 0], [4, 0], [6, 0], [5, 0], [4, 0], [6, 0]]),
+  ] },
+  { short: '1・2弦', desc: '1弦と2弦の0〜3フレット。', phrases: [
+    ph('1弦を上って2弦へ', [[1, 0], [1, 1], [1, 3], [1, 1], [1, 0], [2, 3], [2, 1], [2, 0]]),
+    ph('2弦から1弦へ', [[2, 0], [2, 1], [2, 3], [1, 0], [1, 1], [1, 3], [1, 1], [1, 0]]),
+    ph('行き来する', [[2, 1], [2, 3], [1, 0], [2, 3], [2, 1], [2, 0], [2, 1], [2, 3]]),
+    ph('ジグザグ', [[1, 3], [1, 1], [2, 3], [1, 0], [2, 1], [2, 3], [2, 0], [2, 1]]),
+  ] },
+  { short: '3・4弦', desc: '3弦と4弦の0〜3フレット。', phrases: [
+    ph('4弦から3弦へ', [[4, 0], [4, 2], [4, 3], [3, 0], [3, 2], [3, 0], [4, 3], [4, 2]]),
+    ph('3弦から4弦へ', [[3, 0], [3, 2], [4, 3], [4, 2], [4, 0], [4, 2], [3, 0], [3, 2]]),
+    ph('交互に', [[4, 2], [3, 0], [4, 3], [3, 2], [4, 0], [3, 0], [4, 2], [4, 0]]),
+    ph('ジグザグ', [[3, 2], [3, 0], [4, 3], [3, 0], [4, 2], [4, 3], [4, 0], [3, 2]]),
+  ] },
+  { short: '5・6弦', desc: '5弦と6弦の0〜3フレット。', phrases: [
+    ph('6弦から5弦へ', [[6, 0], [6, 1], [6, 3], [5, 0], [5, 2], [5, 3], [5, 2], [5, 0]]),
+    ph('5弦から6弦へ', [[5, 3], [5, 2], [5, 0], [6, 3], [6, 1], [6, 0], [6, 1], [6, 3]]),
+    ph('ベースライン', [[6, 0], [6, 3], [5, 0], [5, 2], [6, 3], [5, 0], [5, 3], [5, 2]]),
+    ph('交互に', [[5, 0], [6, 3], [5, 2], [6, 1], [5, 3], [6, 0], [5, 0], [6, 3]]),
+  ] },
+  { short: 'Cメジャー', desc: 'ローポジションのドレミ（Cメジャー・スケール）。', phrases: [
+    ph('上がる', [[5, 3], [4, 0], [4, 2], [4, 3], [3, 0], [3, 2], [2, 0], [2, 1]]),
+    ph('下がる', [[2, 1], [2, 0], [3, 2], [3, 0], [4, 3], [4, 2], [4, 0], [5, 3]]),
+    ph('高いほう', [[2, 1], [2, 3], [1, 0], [1, 1], [1, 3], [1, 1], [1, 0], [2, 3]]),
+    ph('ひとつおき', [[5, 3], [4, 2], [4, 0], [4, 3], [4, 2], [3, 0], [4, 3], [3, 2]]),
+  ] },
+  { short: 'ペンタ', desc: 'Aマイナー・ペンタトニック（5フレットの形）。人さし指は5フレット。', phrases: [
+    ph('上がる', [[6, 5], [6, 8], [5, 5], [5, 7], [4, 5], [4, 7], [3, 5], [3, 7]]),
+    ph('てっぺん', [[3, 7], [2, 5], [2, 8], [1, 5], [1, 8], [1, 5], [2, 8], [2, 5]]),
+    ph('下がる', [[1, 5], [2, 8], [2, 5], [3, 7], [3, 5], [4, 7], [4, 5], [5, 7]]),
+    ph('フレーズ', [[5, 5], [5, 7], [4, 5], [4, 7], [3, 5], [4, 7], [5, 7], [6, 8]]),
+  ] },
+  { short: 'Gメジャー', desc: 'ローポジションのGメジャー・スケール（F♯ に注意）。', phrases: [
+    ph('上がる（低）', [[6, 3], [5, 0], [5, 2], [5, 3], [4, 0], [4, 2], [4, 4], [3, 0]]),
+    ph('上がる（高）', [[3, 0], [3, 2], [2, 0], [2, 1], [2, 3], [1, 0], [1, 2], [1, 3]]),
+    ph('下がる（高）', [[1, 3], [1, 2], [1, 0], [2, 3], [2, 1], [2, 0], [3, 2], [3, 0]]),
+    ph('下がる（低）', [[3, 0], [4, 4], [4, 2], [4, 0], [5, 3], [5, 2], [5, 0], [6, 3]]),
+  ] },
+  { short: 'アルペジオ', desc: 'コードを押さえたまま1音ずつ弾く（アルペジオ）。', phrases: [
+    ph('C', [[5, 3], [4, 2], [3, 0], [2, 1], [1, 0], [2, 1], [3, 0], [4, 2]]),
+    ph('Am', [[5, 0], [4, 2], [3, 2], [2, 1], [1, 0], [2, 1], [3, 2], [4, 2]]),
+    ph('G', [[6, 3], [5, 2], [4, 0], [3, 0], [2, 0], [1, 3], [2, 0], [3, 0]]),
+    ph('Em', [[6, 0], [5, 2], [4, 2], [3, 0], [2, 0], [1, 0], [2, 0], [3, 0]]),
+    ph('D', [[4, 0], [3, 2], [2, 3], [1, 2], [2, 3], [3, 2], [4, 0], [3, 2]]),
+  ] },
+];
+const STAGES = { fret: FRET_STAGES, name: NAME_STAGES, staff: STAFF_STAGES, tab: TAB_STAGES };
+const FREE = -1; // 自由練習
+
+// 出題する項目
+const itemsFor = (mode, stage) => {
+  if (mode === 'fret') {
+    return stage.strings.flatMap((s) => range(stage.lo, stage.hi)
+      .filter((f) => !stage.natural || isNatural((OPEN[s] + f) % 12))
+      .map((f) => ({ key: `${s}-${f}`, s, f, midi: OPEN[s] + f })));
+  }
+  if (mode === 'name') {
+    return stage.strings.flatMap((s) => range(0, 11)
+      .filter((pc) => !stage.natural || isNatural(pc))
+      .map((pc) => ({ key: `${s}-${pc}`, s, pc })));
+  }
+  if (mode === 'staff') return stage.notes.map((m) => ({ key: `${m}`, midi: m, lo: stage.lo, hi: stage.hi }));
+  return [];
+};
+const freeItems = (mode) => {
+  const seen = new Map();
+  STAGES[mode].forEach((st) => itemsFor(mode, st).forEach((it) => {
+    if (!seen.has(it.key)) seen.set(it.key, mode === 'staff' ? { ...it, lo: 0, hi: MAX_FRET } : it);
+  }));
+  return [...seen.values()];
+};
+const itemLabel = (mode, key) => {
+  if (mode === 'fret') { const [s, f] = key.split('-').map(Number); return `${s}弦${f}F`; }
+  if (mode === 'name') { const [s, pc] = key.split('-').map(Number); return `${s}弦の${pcName(pc)}`; }
+  return noteLabel(Number(key));
+};
+
+// 苦手なものほど多く出す
+const weightOf = (mode, key) => {
+  const st = store.stats[mode]?.[key];
+  if (!st || st.n === 0) return 2;
+  const miss = 1 - st.ok / st.n;
+  const slow = st.ok ? Math.min(2, st.t / st.ok / LIMIT[mode]) : 2;
+  return 0.4 + 4 * miss + slow;
+};
+const pickWeighted = (mode, items, avoid) => {
+  const pool = items.filter((it) => !avoid(it));
+  const list = pool.length ? pool : items;
+  const ws = list.map((it) => weightOf(mode, it.key));
+  let r = Math.random() * ws.reduce((a, b) => a + b, 0);
+  for (let i = 0; i < list.length; i++) { r -= ws[i]; if (r <= 0) return list[i]; }
+  return list[list.length - 1];
+};
+
+// ---- 音（カープラス・ストロング法で弦をはじいた音）----
+let actx = null;
+let master = null;
+const ensureAudio = () => {
+  if (!actx) {
+    actx = new AudioContext();
+    master = actx.createGain();
+    master.gain.value = S().vol;
+    master.connect(actx.destination);
+  }
+  if (actx.state === 'suspended') actx.resume().catch((e) => console.warn('音を出せません', e));
+  return actx;
+};
+const pluckCache = new Map();
+const pluckBuffer = (midi) => {
+  if (pluckCache.has(midi)) return pluckCache.get(midi);
+  const sr = actx.sampleRate;
+  const freq = 440 * Math.pow(2, (midi - 69) / 12);
+  const len = Math.floor(sr * 2.2);
+  const y = new Float32Array(len);
+  const P = sr / freq - 0.5; // 平均のフィルターで半サンプル遅れる分を引く
+  const n0 = Math.round(P);
+  const g = Math.pow(0.5, 1 / (freq * 0.9)); // 0.9秒で半分に減る
+  let prev = 0;
+  const at = (t) => {
+    if (t < 0) return 0;
+    const i = Math.floor(t);
+    const fr = t - i;
+    return y[i] * (1 - fr) + (i + 1 < len ? y[i + 1] : 0) * fr;
+  };
+  for (let n = 0; n < len; n++) {
+    let ex = 0;
+    if (n < n0) { const w = Math.random() * 2 - 1; prev = prev * 0.5 + w * 0.5; ex = prev; }
+    y[n] = ex + (n >= n0 ? g * 0.5 * (at(n - P) + at(n - P - 1)) : 0);
+  }
+  let peak = 0;
+  for (let n = 0; n < len; n++) peak = Math.max(peak, Math.abs(y[n]));
+  const fade = Math.floor(sr * 0.15);
+  for (let n = 0; n < len; n++) {
+    y[n] = (y[n] / (peak || 1)) * 0.6 * (n > len - fade ? (len - n) / fade : 1);
+  }
+  const buf = actx.createBuffer(1, len, sr);
+  buf.copyToChannel(y, 0);
+  pluckCache.set(midi, buf);
+  return buf;
+};
+const pluck = (midi, when = 0, gain = 1) => {
+  ensureAudio();
+  const src = actx.createBufferSource();
+  src.buffer = pluckBuffer(midi);
+  const g = actx.createGain();
+  g.gain.value = gain;
+  src.connect(g).connect(master);
+  src.start(Math.max(actx.currentTime, when));
+};
+const click = (when, accent) => {
+  ensureAudio();
+  const o = actx.createOscillator();
+  const g = actx.createGain();
+  o.type = 'square';
+  o.frequency.value = accent ? 1600 : 1100;
+  g.gain.setValueAtTime(accent ? 0.25 : 0.15, when);
+  g.gain.exponentialRampToValueAtTime(0.0001, when + 0.04);
+  o.connect(g).connect(master);
+  o.start(when);
+  o.stop(when + 0.05);
+};
+const fanfare = () => {
+  ensureAudio();
+  const t = actx.currentTime + 0.05;
+  [60, 64, 67, 72].forEach((m, i) => pluck(m, t + i * 0.12, 0.8));
+};
+// AudioContext の時刻 → performance.now() の時刻への差
+const perfOffset = () => {
+  const ts = actx.getOutputTimestamp ? actx.getOutputTimestamp() : null;
+  if (ts && ts.performanceTime > 0) return ts.performanceTime - ts.contextTime * 1000;
+  return performance.now() - actx.currentTime * 1000 + (actx.outputLatency || actx.baseLatency || 0) * 1000;
+};
+
+// ---- 指板の図 ----
+const FB = { W: 900, H: 196, x0: 66, L: 800, y0: 22, dy: 28 };
+const fretX = (f) => FB.x0 + FB.L * (1 - Math.pow(2, -f / 12)) / 0.5;
+const dotX = (f) => (f === 0 ? FB.x0 - 28 : (fretX(f - 1) + fretX(f)) / 2);
+const strY = (s) => FB.y0 + (s - 1) * FB.dy;
+const mx = (x) => (S().lefty ? FB.W - x : x);
+let fbState = { marks: [], strings: [], clickable: true };
+const renderFretboard = (opts = {}) => {
+  fbState = { marks: [], strings: [], clickable: true, ...opts };
+  const xEnd = fretX(MAX_FRET) + 10;
+  const xa = mx(FB.x0), xb = mx(xEnd);
+  let h = `<svg viewBox="0 0 ${FB.W} ${FB.H}" class="fb${fbState.clickable ? '' : ' noclick'}" role="img" aria-label="ギターの指板（上が1弦）">`;
+  h += `<rect x="${Math.min(xa, xb)}" y="${strY(1) - 14}" width="${Math.abs(xb - xa)}" height="${strY(6) - strY(1) + 28}" rx="4" fill="#f1e2c8"/>`;
+  // 弦の強調（音名モードの指定の弦など）
+  fbState.strings.forEach((s) => {
+    const x1 = mx(FB.x0 - 48), x2 = mx(xEnd);
+    h += `<rect x="${Math.min(x1, x2)}" y="${strY(s) - 12}" width="${Math.abs(x2 - x1)}" height="24" rx="12" fill="rgba(44,110,99,.16)"/>`;
+  });
+  // ポジションマーク
+  const midY = (strY(3) + strY(4)) / 2;
+  [3, 5, 7, 9].forEach((f) => { h += `<circle cx="${mx(dotX(f))}" cy="${midY}" r="6" fill="#d9c3a0"/>`; });
+  h += `<circle cx="${mx(dotX(12))}" cy="${(strY(2) + strY(3)) / 2}" r="6" fill="#d9c3a0"/>`;
+  h += `<circle cx="${mx(dotX(12))}" cy="${(strY(4) + strY(5)) / 2}" r="6" fill="#d9c3a0"/>`;
+  // フレット
+  for (let f = 1; f <= MAX_FRET; f++) {
+    h += `<line x1="${mx(fretX(f))}" y1="${strY(1) - 14}" x2="${mx(fretX(f))}" y2="${strY(6) + 14}" stroke="#a89780" stroke-width="2"/>`;
+  }
+  h += `<line x1="${mx(FB.x0)}" y1="${strY(1) - 14}" x2="${mx(FB.x0)}" y2="${strY(6) + 14}" stroke="#4a3a2a" stroke-width="6"/>`;
+  // 弦
+  STRINGS.forEach((s) => {
+    const w = 0.8 + (s - 1) * 0.4;
+    h += `<line x1="${mx(FB.x0 - 48)}" y1="${strY(s)}" x2="${mx(xEnd)}" y2="${strY(s)}" stroke="#6f6252" stroke-width="${w}"/>`;
+    h += `<text x="${mx(FB.x0 - 58)}" y="${strY(s)}" font-size="11" fill="#7a6f62" text-anchor="middle" dominant-baseline="central">${s}</text>`;
+  });
+  // フレット番号
+  for (let f = 0; f <= MAX_FRET; f++) {
+    h += `<text x="${mx(dotX(f))}" y="${FB.H - 6}" font-size="12" fill="#7a6f62" text-anchor="middle">${f}</text>`;
+  }
+  // クリックの当たり
+  STRINGS.forEach((s) => {
+    for (let f = 0; f <= MAX_FRET; f++) {
+      const l = f === 0 ? FB.x0 - 48 : fretX(f - 1);
+      const r = fretX(f);
+      const x1 = mx(l), x2 = mx(r);
+      h += `<rect class="hit" data-s="${s}" data-f="${f}" x="${Math.min(x1, x2)}" y="${strY(s) - 14}" width="${Math.abs(x2 - x1)}" height="28"/>`;
+    }
+  });
+  // 印
+  fbState.marks.forEach((m) => {
+    h += `<g class="mark ${m.cls || ''}"><circle cx="${mx(dotX(m.f))}" cy="${strY(m.s)}" r="12"/>${m.label ? `<text x="${mx(dotX(m.f))}" y="${strY(m.s)}">${m.label}</text>` : ''}</g>`;
+  });
+  h += '</svg>';
+  $('fretboard').innerHTML = h;
+  // スマホで指板がはみ出すときは、印が見える位置まで横にずらす
+  const wrap = $('fretboard').parentElement;
+  const svg = $('fretboard').firstElementChild;
+  if (fbState.marks.length && svg && svg.clientWidth > wrap.clientWidth) {
+    const xs = fbState.marks.map((m) => (mx(dotX(m.f)) / FB.W) * svg.clientWidth);
+    const lo = Math.min(...xs), hi = Math.max(...xs);
+    if (lo < wrap.scrollLeft + 20 || hi > wrap.scrollLeft + wrap.clientWidth - 20) {
+      wrap.scrollLeft = (lo + hi) / 2 - wrap.clientWidth / 2;
+    }
+  }
+};
+const addMarks = (marks) => renderFretboard({ ...fbState, marks: [...fbState.marks, ...marks] });
+
+// ---- 楽譜 ----
+const renderStaff = (midi, flat) => {
+  const el = $('score');
+  el.innerHTML = '';
+  const r = new VF.Renderer(el, VF.Renderer.Backends.SVG);
+  r.resize(240, 170);
+  const ctx = r.getContext();
+  const stave = new VF.Stave(10, 12, 220);
+  stave.addClef('treble', 'default', '8vb');
+  stave.setContext(ctx).draw();
+  const sp = spell(midi + 12, flat);
+  const note = new VF.StaveNote({ keys: [sp.key], duration: 'w', clef: 'treble' });
+  if (sp.acc) note.addModifier(new VF.Accidental(sp.acc), 0);
+  VF.Formatter.FormatAndDraw(ctx, stave, [note]);
+  const svg = el.querySelector('svg');
+  if (svg) { svg.setAttribute('viewBox', '0 0 240 170'); svg.removeAttribute('width'); svg.removeAttribute('height'); }
+};
+const renderTab = (notes, status, cur) => {
+  const el = $('score');
+  el.innerHTML = '';
+  const w = Math.max(420, Math.min(760, el.clientWidth || 760));
+  const r = new VF.Renderer(el, VF.Renderer.Backends.SVG);
+  r.resize(w, 140);
+  const ctx = r.getContext();
+  const stave = new VF.TabStave(8, 0, w - 16);
+  stave.addClef('tab');
+  stave.setContext(ctx).draw();
+  const tn = notes.map(([s, f]) => new VF.TabNote({ positions: [{ str: s, fret: f }], duration: 'q' }));
+  const voice = new VF.Voice({ num_beats: tn.length, beat_value: 4 });
+  voice.addTickables(tn);
+  tn.forEach((n) => n.setStave(stave));
+  new VF.Formatter().joinVoices([voice]).format([voice], w - 90);
+  const top = stave.getYForLine(0) - 10;
+  const hgt = stave.getYForLine(5) - stave.getYForLine(0) + 20;
+  const COLORS = { ok: 'rgba(46,139,87,.22)', good: 'rgba(217,162,27,.28)', miss: 'rgba(200,67,58,.22)' };
+  tn.forEach((n, i) => {
+    const fill = i === cur ? 'rgba(44,110,99,.28)' : COLORS[status[i]];
+    if (!fill) return;
+    ctx.save();
+    ctx.setFillStyle(fill);
+    ctx.fillRect(n.getAbsoluteX() - 7, top, n.getWidth() + 14, hgt);
+    ctx.restore();
+  });
+  voice.draw(ctx, stave);
+  const svg = el.querySelector('svg');
+  if (svg) { svg.setAttribute('viewBox', `0 0 ${w} 140`); svg.removeAttribute('width'); svg.removeAttribute('height'); svg.style.width = `${w}px`; }
+};
+
+// ---- 状態 ----
+let mode = 'fret';
+let stageIdx = 0;
+let run = null;
+let timers = [];
+const later = (fn, ms) => { const id = setTimeout(fn, ms); timers.push(id); return id; };
+const clearTimers = () => { timers.forEach(clearTimeout); timers = []; };
+const stageOf = () => (stageIdx === FREE ? null : STAGES[mode][stageIdx]);
+const bestKey = (m, i, sub = '') => `${m}:${i}${sub}`;
+const bestStars = (m, i) => {
+  if (m === 'tab') return Math.max(store.best[bestKey(m, i, ':order')]?.stars || 0, store.best[bestKey(m, i, ':tempo')]?.stars || 0);
+  return store.best[bestKey(m, i)]?.stars || 0;
+};
+const starText = (n) => '★'.repeat(n) + '☆'.repeat(3 - n);
+
+const today = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+const tickDaily = (ok) => {
+  const t = today();
+  const dl = store.daily;
+  if (dl.last !== t) {
+    const y = new Date(); y.setDate(y.getDate() - 1);
+    const ys = `${y.getFullYear()}-${String(y.getMonth() + 1).padStart(2, '0')}-${String(y.getDate()).padStart(2, '0')}`;
+    dl.streak = dl.last === ys ? dl.streak + 1 : 1;
+    dl.last = t;
+    dl.today = 0;
+  }
+  dl.today++;
+  store.total.n++;
+  if (ok) store.total.ok++;
+};
+const recordItem = (m, key, firstTry, ms) => {
+  store.stats[m] ??= {};
+  const st = (store.stats[m][key] ??= { n: 0, ok: 0, t: 0 });
+  st.n++;
+  if (firstTry) { st.ok++; st.t += ms; }
+  tickDaily(firstTry);
+  saveStore();
+};
+
+// ---- 画面 ----
+const setFeedback = (text, cls = '') => { const el = $('feedback'); el.textContent = text; el.className = `feedback ${cls}`; };
+const applyModeVisibility = () => {
+  document.body.dataset.mode = mode;
+  document.querySelectorAll('[data-modes]').forEach((el) => {
+    el.classList.toggle('mode-off', !el.dataset.modes.split(' ').includes(mode));
+  });
+  document.querySelectorAll('#modeSeg button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.v === mode)));
+  document.querySelectorAll('#tabPlaySeg button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.v === S().tabPlay)));
+  $('bpmBox').classList.toggle('mode-off', mode !== 'tab');
+  const notes = {
+    fret: '光った位置の音名を、下のボタンか PC のキー（C〜B の文字、Shift で♯）で答えます。',
+    name: 'MIDIギターで弾いて答えます。指定の弦で、言われた音の場所を探してください。',
+    staff: 'MIDIギターで、楽譜の音を弾きます。ステージのポジション（フレットの範囲）の中なら、どの弦で弾いても正解です。',
+    tab: 'TAB譜のとおりに弾きます。弦まで合っているかを見ます（MIDIの弦の判定がオフのときは音の高さだけ）。',
+  };
+  $('inputNote').textContent = `${notes[mode]} MIDIギターがないときは、指板の図をクリックしても弾けます。`;
+};
+const renderStageBar = () => {
+  const bar = $('stageBar');
+  bar.innerHTML = '';
+  const list = STAGES[mode];
+  list.forEach((st, i) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.setAttribute('aria-pressed', String(i === stageIdx));
+    const stars = bestStars(mode, i);
+    b.innerHTML = `<span><b>${i + 1}</b>${st.short}</span><span class="stars">${starText(stars)}</span>`;
+    b.setAttribute('aria-label', `ステージ${i + 1} ${st.short}（★${stars}）`);
+    b.addEventListener('click', () => selectStage(i));
+    bar.appendChild(b);
+  });
+  const fb = document.createElement('button');
+  fb.type = 'button';
+  fb.setAttribute('aria-pressed', String(stageIdx === FREE));
+  fb.innerHTML = '<span>自由練習</span><span class="stars">苦手を多めに</span>';
+  fb.addEventListener('click', () => selectStage(FREE));
+  bar.appendChild(fb);
+  const cur = bar.querySelector('[aria-pressed="true"]');
+  if (cur) bar.scrollLeft = cur.offsetLeft - (bar.clientWidth - cur.offsetWidth) / 2;
+};
+const renderStageInfo = () => {
+  const st = stageOf();
+  if (!st) {
+    $('stageInfo').innerHTML = mode === 'tab'
+      ? '<b>自由練習</b>：全ステージのフレーズからランダムに4つ。'
+      : '<b>自由練習</b>：全ステージの音から、間違えやすいもの・時間がかかるものを多めに出します。終わりはありません。';
+    return;
+  }
+  let rule = '';
+  if (mode === 'tab') rule = S().tabPlay === 'tempo' ? '1回目で合った音が85%以上でクリア' : '1回で弾けた音が85%以上でクリア';
+  else rule = `${QUESTIONS}問・1回で正解16問以上、平均${LIMIT[mode] / 1000}秒以内でクリア`;
+  $('stageInfo').innerHTML = `<b>ステージ${stageIdx + 1}　${st.short}</b>：${st.desc}<br>${rule}`;
+};
+const renderIdle = () => {
+  $('prompt').innerHTML = '<small>スタートを押すと始まります</small>';
+  $('count').textContent = '';
+  $('combo').textContent = '';
+  setFeedback('');
+  if (mode === 'staff') renderStaff(stageOf()?.notes[0] ?? 52, false);
+  if (mode === 'tab') {
+    const phr = stageOf() ? stageOf().phrases[0] : TAB_STAGES[0].phrases[0];
+    renderTab(phr.notes, [], -1);
+  }
+  renderFretboard({});
+};
+const renderStats = () => {
+  const total = store.total;
+  const cleared = Object.keys(STAGES).reduce((a, m) => a + STAGES[m].filter((_, i) => bestStars(m, i) > 0).length, 0);
+  const all = Object.values(STAGES).reduce((a, l) => a + l.length, 0);
+  const streak = store.daily.last === today() ? store.daily.streak : 0;
+  $('stats').innerHTML = [
+    [store.daily.last === today() ? store.daily.today : 0, '今日弾いた数'],
+    [`${streak}日`, '続けた日数'],
+    [total.n ? `${Math.round((total.ok / total.n) * 100)}%` : '—', '1回で正解'],
+    [`${cleared}/${all}`, 'クリアしたステージ'],
+  ].map(([v, l]) => `<div class="stat"><b>${v}</b><span>${l}</span></div>`).join('');
+  const st = store.stats[mode] || {};
+  const weak = Object.entries(st)
+    .filter(([, v]) => v.n >= 2 && v.ok < v.n)
+    .sort((a, b) => (a[1].ok / a[1].n) - (b[1].ok / b[1].n))
+    .slice(0, 5);
+  $('weak').innerHTML = mode === 'tab' ? '' : weak.length
+    ? `苦手：${weak.map(([k, v]) => `<strong>${itemLabel(mode, k)}</strong>（${Math.round((v.ok / v.n) * 100)}%）`).join('、')}`
+    : '';
+};
+const setRunningUI = (running) => {
+  $('startBtn').hidden = running;
+  $('stopBtn').hidden = !running;
+  $('skipBtn').hidden = !running || mode === 'tab';
+  $('result').hidden = true;
+  document.querySelectorAll('#tabPlaySeg button, #bpmBox button, #bpmBox input').forEach((b) => { b.disabled = running; });
+};
+
+// ---- 1問ずつのモード（指板・音名・五線譜）----
+const startFlash = () => {
+  const items = stageIdx === FREE ? freeItems(mode) : itemsFor(mode, stageOf());
+  run = { mode, stage: stageIdx, items, results: [], combo: 0, maxCombo: 0, q: null, prevKey: null, prevMidi: null, locked: false };
+  setRunningUI(true);
+  nextQuestion();
+};
+const nextQuestion = () => {
+  if (!run) return;
+  const it = pickWeighted(mode, run.items, (x) => x.key === run.prevKey || (x.midi != null && x.midi === run.prevMidi));
+  const flat = !isNatural((it.midi ?? it.pc) % 12) && Math.random() < 0.5;
+  const q = { ...it, flat, missed: false, t0: performance.now() };
+  if (mode === 'name') {
+    q.accept = range(0, MAX_FRET).filter((f) => (OPEN[it.s] + f) % 12 === it.pc).map((f) => OPEN[it.s] + f);
+    q.positions = q.accept.map((m) => ({ s: it.s, f: m - OPEN[it.s] }));
+  }
+  if (mode === 'staff') q.positions = positionsOf(it.midi);
+  run.q = q;
+  run.prevKey = it.key;
+  run.prevMidi = it.midi ?? null;
+  run.locked = false;
+  document.querySelectorAll('#noteBtns button').forEach((b) => b.classList.remove('right', 'wrong'));
+  setFeedback('');
+  const n = run.results.length + 1;
+  $('count').innerHTML = stageIdx === FREE ? `${n}<small> 問目</small>` : `${n}<small> / ${QUESTIONS}</small>`;
+  $('combo').textContent = run.combo >= 3 ? `${run.combo} コンボ！` : '';
+  if (mode === 'fret') {
+    $('prompt').innerHTML = `<span class="big">${it.s}弦 ${it.f}フレット</span><small>この位置の音は？</small>`;
+    renderFretboard({ marks: [{ s: it.s, f: it.f, cls: 'target pulse' }], clickable: false });
+  } else if (mode === 'name') {
+    $('prompt').innerHTML = `<span class="big">${it.s}弦</span>で<span class="big">${pcName(it.pc, flat)}</span><small>を弾いてください（0〜12フレット）</small>`;
+    renderFretboard({ strings: [it.s] });
+  } else {
+    $('prompt').innerHTML = '<small>この音を弾いてください</small>';
+    renderStaff(it.midi, flat);
+    renderFretboard({});
+  }
+};
+const flashJudge = (inp) => {
+  if (!run || run.locked || !run.q) return;
+  const q = run.q;
+  let ok;
+  if (mode === 'fret') {
+    if (inp.pc == null) return;
+    ok = inp.pc === q.midi % 12;
+  } else {
+    if (inp.midi == null) return;
+    const octaveOk = (m) => S().octaveFree && m % 12 === inp.midi % 12;
+    if (mode === 'name') {
+      ok = q.accept.includes(inp.midi) || q.accept.some(octaveOk);
+      if (ok && inp.s != null && (S().strictString || inp.src === 'click') && inp.s !== q.s) ok = false;
+    } else {
+      ok = inp.midi === q.midi || octaveOk(q.midi);
+      if (ok && S().strictString && inp.s != null && (inp.f < q.lo || inp.f > q.hi)) ok = false;
+    }
+  }
+  if (ok) flashCorrect(inp);
+  else flashWrong(inp);
+};
+const answerMarks = (q) => {
+  if (mode === 'fret') return [{ s: q.s, f: q.f, cls: 'ok', label: pcName(q.midi % 12, q.flat) }];
+  return q.positions.map((p) => ({ ...p, cls: 'ans', label: pcName((OPEN[p.s] + p.f) % 12, q.flat) }));
+};
+const flashCorrect = (inp) => {
+  const q = run.q;
+  const ms = performance.now() - q.t0;
+  const first = !q.missed;
+  run.locked = true;
+  recordItem(mode, q.key, first, ms);
+  run.results.push({ ok: first, t: ms });
+  if (first) { run.combo++; run.maxCombo = Math.max(run.maxCombo, run.combo); } else run.combo = 0;
+  const sec = (ms / 1000).toFixed(1);
+  setFeedback(first ? `◎ 正解！ ${sec}秒` : `○ 正解（2回目以降） ${sec}秒`, first ? 'ok' : 'good');
+  $('combo').textContent = run.combo >= 3 ? `${run.combo} コンボ！` : '';
+  if (mode === 'fret') {
+    document.querySelectorAll('#noteBtns button').forEach((b) => { if (Number(b.dataset.pc) === inp.pc) b.classList.add('right'); });
+    pluck(q.midi);
+    renderFretboard({ marks: answerMarks(q), clickable: false });
+  } else {
+    const marks = answerMarks(q).filter((p) => !(inp.s === p.s && inp.f === p.f));
+    if (inp.s != null) marks.push({ s: inp.s, f: inp.f, cls: 'ok', label: pcName(inp.midi % 12, q.flat) });
+    renderFretboard({ ...fbState, marks });
+  }
+  renderStats();
+  later(() => (shouldFinish() ? finishFlash() : nextQuestion()), first ? 550 : 900);
+};
+const flashWrong = (inp) => {
+  const q = run.q;
+  q.missed = true;
+  run.combo = 0;
+  $('combo').textContent = '';
+  if (mode === 'fret') {
+    document.querySelectorAll('#noteBtns button').forEach((b) => { if (Number(b.dataset.pc) === inp.pc) b.classList.add('wrong'); });
+    setFeedback(`✗ ${pcName(inp.pc)} ではありません`, 'ng');
+    return;
+  }
+  let why = `いまの音は ${noteLabel(inp.midi)}`;
+  if (inp.s != null) why += `（${inp.s}弦${inp.f}F）`;
+  const sameNote = mode === 'name' ? q.accept.includes(inp.midi) : inp.midi === q.midi;
+  if (sameNote) why += mode === 'name' ? '。音は合っていますが、弦が違います' : '。音は合っていますが、ポジションの外です';
+  setFeedback(`✗ ${why}`, 'ng');
+  if (inp.s != null) addMarks([{ s: inp.s, f: inp.f, cls: 'ng' }]);
+};
+const skipQuestion = () => {
+  if (!run || run.locked || !run.q || mode === 'tab') return;
+  const q = run.q;
+  run.locked = true;
+  run.combo = 0;
+  recordItem(mode, q.key, false, 0);
+  run.results.push({ ok: false, t: LIMIT[mode] * 2 });
+  const ans = mode === 'fret' ? pcName(q.midi % 12, q.flat) : noteLabel(q.midi ?? q.accept[0], q.flat);
+  setFeedback(`答え：${ans}`, 'good');
+  if (mode === 'fret') renderFretboard({ marks: answerMarks(q), clickable: false });
+  else renderFretboard({ ...fbState, marks: answerMarks(q) });
+  pluck(q.midi ?? q.accept[0]);
+  renderStats();
+  later(() => (shouldFinish() ? finishFlash() : nextQuestion()), 1800);
+};
+const shouldFinish = () => run && run.stage !== FREE && run.results.length >= QUESTIONS;
+const finishFlash = () => {
+  const r = run;
+  const okN = r.results.filter((x) => x.ok).length;
+  const n = r.results.length;
+  stopRun(false);
+  if (!n) return;
+  const avg = r.results.reduce((a, x) => a + x.t, 0) / n;
+  const limit = LIMIT[r.mode];
+  const rate = okN / n;
+  if (r.stage === FREE) {
+    showResult(null, `${n}問・1回で正解 ${okN}問（${Math.round(rate * 100)}%）`, `平均 ${(avg / 1000).toFixed(1)}秒・最大 ${r.maxCombo} コンボ`);
+    return;
+  }
+  const clear = okN >= 16 && avg <= limit;
+  const stars = !clear ? 0 : (okN >= 19 && avg <= limit * 0.6) ? 3 : (okN >= 18 && avg <= limit * 0.8) ? 2 : 1;
+  saveBest(bestKey(r.mode, r.stage), { stars, rate, avg });
+  showResult(stars, `1回で正解 ${okN} / ${n}問・平均 ${(avg / 1000).toFixed(1)}秒`,
+    clear ? `最大 ${r.maxCombo} コンボ${stars < 3 ? `　★3は19問以上・平均${(limit * 0.6 / 1000).toFixed(1)}秒以内` : ''}`
+      : `クリアには 1回で正解16問以上・平均${limit / 1000}秒以内`);
+};
+const saveBest = (key, rec) => {
+  const old = store.best[key];
+  if (!old || rec.stars > old.stars || (rec.stars === old.stars && rec.rate > old.rate)) store.best[key] = rec;
+  saveStore();
+};
+const showResult = (stars, line1, line2) => {
+  const el = $('result');
+  el.hidden = false;
+  if (stars == null) {
+    el.className = 'result';
+    el.innerHTML = '<h2>おつかれさま</h2>';
+  } else {
+    el.className = `result ${stars ? 'clear' : 'fail'}`;
+    el.innerHTML = `<h2>${stars ? 'クリア！' : 'もう少し！'}</h2><p class="stars">${starText(stars)}</p>`;
+    if (stars) fanfare();
+  }
+  const p1 = document.createElement('p'); p1.textContent = line1;
+  const p2 = document.createElement('p'); p2.className = 'sub'; p2.textContent = line2;
+  el.append(p1, p2);
+  const row = document.createElement('div');
+  row.className = 'controls';
+  const again = document.createElement('button');
+  again.type = 'button'; again.className = 'ghost'; again.textContent = 'もう一度';
+  again.addEventListener('click', startRun);
+  row.appendChild(again);
+  const list = STAGES[mode];
+  if (stars && stageIdx !== FREE && stageIdx < list.length - 1) {
+    const nx = document.createElement('button');
+    nx.type = 'button'; nx.textContent = '次のステージへ →';
+    nx.addEventListener('click', () => { selectStage(stageIdx + 1); startRun(); });
+    row.appendChild(nx);
+  }
+  el.appendChild(row);
+  renderStageBar();
+  renderStats();
+};
+
+// ---- TAB譜 ----
+const shuffle = (a) => { const b = [...a]; for (let i = b.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [b[i], b[j]] = [b[j], b[i]]; } return b; };
+const startTab = () => {
+  const phrases = stageIdx === FREE ? shuffle(TAB_STAGES.flatMap((s) => s.phrases)).slice(0, 4) : stageOf().phrases;
+  run = { mode: 'tab', stage: stageIdx, play: S().tabPlay, phrases, pi: 0, ni: 0, status: [], missedNote: false, ok: 0, good: 0, total: 0, extra: 0, t0: performance.now() };
+  setRunningUI(true);
+  beginPhrase();
+};
+const curPhrase = () => run.phrases[run.pi];
+const showTabState = () => {
+  const p = curPhrase();
+  renderTab(p.notes, run.status, run.ni);
+  $('count').innerHTML = `${run.pi + 1}<small> / ${run.phrases.length} フレーズ</small>`;
+  $('prompt').innerHTML = `<small>${p.name}</small>`;
+  const n = p.notes[run.ni];
+  renderFretboard({ marks: n ? [{ s: n[0], f: n[1], cls: 'next' }] : [] });
+};
+const beginPhrase = () => {
+  run.ni = 0;
+  run.status = [];
+  run.missedNote = false;
+  setFeedback('');
+  if (run.play === 'tempo') beginTempoPhrase();
+  else showTabState();
+};
+const tabMatches = (inp, note) => {
+  const target = OPEN[note[0]] + note[1];
+  const pitch = inp.midi === target || (S().octaveFree && inp.midi % 12 === target % 12);
+  return pitch && (inp.s == null || inp.s === note[0]);
+};
+const tabOrderJudge = (inp) => {
+  if (inp.midi == null || run.locked) return;
+  const note = curPhrase().notes[run.ni];
+  if (!note) return;
+  if (tabMatches(inp, note)) {
+    const first = !run.missedNote;
+    run.status[run.ni] = first ? 'ok' : 'miss';
+    run.total++;
+    if (first) run.ok++;
+    tickDaily(first);
+    run.ni++;
+    run.missedNote = false;
+    setFeedback(first ? '◎' : '○', first ? 'ok' : 'good');
+    if (run.ni >= curPhrase().notes.length) {
+      run.locked = true;
+      showTabState();
+      saveStore();
+      renderStats();
+      later(() => { run.locked = false; run.pi++; if (run.pi >= run.phrases.length) finishTab(); else beginPhrase(); }, 700);
+    } else showTabState();
+  } else {
+    run.missedNote = true;
+    let why = `✗ いまの音は ${noteLabel(inp.midi)}`;
+    if (inp.s != null) why += `（${inp.s}弦${inp.f}F）`;
+    setFeedback(why, 'ng');
+    if (inp.s != null) addMarks([{ s: inp.s, f: inp.f, cls: 'ng' }]);
+  }
+};
+
+// テンポに合わせる：4拍のカウントのあと、4分音符で1音ずつ
+const PERFECT_MS = 70;
+const GOOD_MS = 150;
+const beginTempoPhrase = () => {
+  ensureAudio();
+  const p = curPhrase();
+  const beat = 60 / S().bpm;
+  const startCtx = actx.currentTime + 0.25;
+  for (let i = 0; i < 4 + p.notes.length; i++) click(startCtx + i * beat, i % 4 === 0);
+  const off = perfOffset();
+  run.noteTimes = p.notes.map((_, i) => off + (startCtx + (4 + i) * beat) * 1000);
+  run.countStart = off + startCtx * 1000;
+  run.beatMs = beat * 1000;
+  run.judged = p.notes.map(() => false);
+  run.ni = -1;
+  renderTab(p.notes, run.status, -1);
+  $('count').innerHTML = `${run.pi + 1}<small> / ${run.phrases.length} フレーズ</small>`;
+  $('prompt').innerHTML = `<small>${p.name}</small>`;
+  renderFretboard({});
+  run.raf = requestAnimationFrame(tempoTick);
+};
+const tempoTick = () => {
+  if (!run || run.mode !== 'tab' || run.play !== 'tempo') return;
+  const now = performance.now();
+  const p = curPhrase();
+  if (now < run.noteTimes[0] - run.beatMs / 2) {
+    const k = Math.floor((now - run.countStart) / run.beatMs);
+    $('prompt').innerHTML = `<small>${p.name}</small><span class="big">${k >= 0 && k < 4 ? k + 1 : ''}</span>`;
+  } else if ($('prompt').querySelector('.big')) {
+    $('prompt').innerHTML = `<small>${p.name}</small>`;
+  }
+  // 時間切れの音はミス
+  let changed = false;
+  run.noteTimes.forEach((t, i) => {
+    if (!run.judged[i] && now > t + GOOD_MS + S().latency) {
+      run.judged[i] = true; run.status[i] = 'miss'; run.total++; tickDaily(false); changed = true;
+    }
+  });
+  // いまの拍の音を光らせる
+  const cur = run.noteTimes.findIndex((t) => now < t + run.beatMs / 2);
+  if (cur !== run.ni || changed) {
+    run.ni = cur;
+    renderTab(p.notes, run.status, cur);
+    const n = p.notes[cur];
+    renderFretboard({ marks: n ? [{ s: n[0], f: n[1], cls: 'next' }] : [] });
+  }
+  if (run.judged.every(Boolean)) {
+    saveStore();
+    renderStats();
+    later(() => { run.pi++; if (run.pi >= run.phrases.length) finishTab(); else beginPhrase(); }, 600);
+    return;
+  }
+  run.raf = requestAnimationFrame(tempoTick);
+};
+const tabTempoJudge = (inp) => {
+  if (inp.midi == null || !run.noteTimes) return;
+  const t = (inp.time ?? performance.now()) - S().latency;
+  const notes = curPhrase().notes;
+  let best = -1;
+  let bestD = Infinity;
+  run.noteTimes.forEach((nt, i) => {
+    const d = t - nt;
+    if (!run.judged[i] && Math.abs(d) <= GOOD_MS && tabMatches(inp, notes[i]) && Math.abs(d) < Math.abs(bestD)) { best = i; bestD = d; }
+  });
+  if (best < 0) {
+    run.extra++;
+    setFeedback(`✗ 余分な音 ${noteLabel(inp.midi)}${inp.s != null ? `（${inp.s}弦${inp.f}F）` : ''}`, 'ng');
+    return;
+  }
+  run.judged[best] = true;
+  run.total++;
+  const perfect = Math.abs(bestD) <= PERFECT_MS;
+  run.status[best] = perfect ? 'ok' : 'good';
+  if (perfect) run.ok++; else run.good++;
+  tickDaily(true);
+  const lag = Math.round(bestD);
+  setFeedback(`${perfect ? 'Perfect' : 'Good'}　${lag > 0 ? `${lag}ms 遅い` : lag < 0 ? `${-lag}ms 早い` : 'ぴったり'}`, perfect ? 'ok' : 'good');
+};
+const finishTab = () => {
+  const r = run;
+  stopRun(false);
+  if (!r.total) return;
+  const hits = r.ok + r.good;
+  const rate = hits / r.total;
+  let line1;
+  let line2;
+  if (r.play === 'tempo') {
+    line1 = `合った音 ${hits} / ${r.total}（Perfect ${r.ok}・Good ${r.good}）`;
+    line2 = `余分な音 ${r.extra}・テンポ ${S().bpm}`;
+  } else {
+    line1 = `1回で弾けた音 ${r.ok} / ${r.total}（${Math.round(rate * 100)}%）`;
+    line2 = `かかった時間 ${((performance.now() - r.t0) / 1000).toFixed(0)}秒`;
+  }
+  if (r.stage === FREE) { showResult(null, line1, line2); return; }
+  const score = r.play === 'tempo' ? (r.ok + r.good * 0.7) / r.total - r.extra * 0.02 : rate;
+  const stars = rate < 0.85 ? 0 : score >= 0.98 ? 3 : score >= 0.92 ? 2 : 1;
+  saveBest(bestKey('tab', r.stage, `:${r.play}`), { stars, rate });
+  showResult(stars, line1, `${line2}${!stars ? '　クリアには85%以上' : ''}`);
+};
+const playDemo = () => {
+  ensureAudio();
+  const p = run && run.mode === 'tab' ? curPhrase() : (stageOf() ? stageOf().phrases[0] : TAB_STAGES[0].phrases[0]);
+  const beat = 60 / S().bpm;
+  const t0 = actx.currentTime + 0.1;
+  p.notes.forEach(([s, f], i) => pluck(OPEN[s] + f, t0 + i * beat, 0.9));
+};
+
+// ---- 開始・停止 ----
+const startRun = () => {
+  ensureAudio();
+  stopRun(false);
+  $('result').hidden = true;
+  if (mode === 'tab') startTab();
+  else startFlash();
+};
+const stopRun = (showIdle = true) => {
+  clearTimers();
+  if (run && run.raf) cancelAnimationFrame(run.raf);
+  const wasFree = run && run.stage === FREE && run.mode !== 'tab' && run.results.length;
+  const r = run;
+  run = null;
+  setRunningUI(false);
+  if (showIdle) {
+    if (wasFree) { run = r; finishFlash(); return; }
+    renderIdle();
+  }
+};
+const selectMode = (m) => {
+  if (m === mode) return;
+  stopRun(false);
+  mode = m;
+  stageIdx = 0;
+  applyModeVisibility();
+  renderStageBar();
+  renderStageInfo();
+  renderStats();
+  $('result').hidden = true;
+  renderIdle();
+};
+const selectStage = (i) => {
+  stopRun(false);
+  stageIdx = i;
+  renderStageBar();
+  renderStageInfo();
+  $('result').hidden = true;
+  renderIdle();
+};
+
+// ---- 入力 ----
+const chanToString = (ch) => {
+  const c = S().chan;
+  if (c === 'asc' && ch >= 0 && ch <= 5) return ch + 1;
+  if (c === 'desc' && ch >= 0 && ch <= 5) return 6 - ch;
+  if (c === 'asc11' && ch >= 10 && ch <= 15) return ch - 9;
+  return null;
+};
+const onPlayed = (inp) => {
+  if (inp.s != null) {
+    inp.f = inp.midi - OPEN[inp.s];
+    if (inp.f < 0 || inp.f > 24) { inp.s = null; inp.f = null; }
+  }
+  const where = inp.s != null ? `${inp.s}弦 ${inp.f}フレット` : '弦は不明';
+  $('heard').textContent = `弾いた音：${noteLabel(inp.midi)}（${where}）`;
+  if (!run) {
+    if (inp.s != null && inp.f <= MAX_FRET) renderFretboard({ ...fbState, marks: [{ s: inp.s, f: inp.f, cls: 'played', label: pcName(inp.midi % 12) }] });
+    return;
+  }
+  if (run.mode === 'tab') {
+    if (run.play === 'tempo') tabTempoJudge(inp);
+    else tabOrderJudge(inp);
+  } else if (run.mode !== 'fret') flashJudge(inp);
+};
+const onMidiMessage = (e) => {
+  const [st, d1, d2] = e.data;
+  const type = st & 0xf0;
+  const ch = st & 0x0f;
+  if (type !== 0x90 || d2 === 0) return;
+  const s = chanToString(ch);
+  const f = s != null ? d1 - OPEN[s] : null;
+  $('midiMonitor').textContent = `ch${ch + 1}　ノート ${d1}（${noteLabel(d1)}）　強さ ${d2}　→ ${s != null && f >= 0 && f <= 24 ? `${s}弦 ${f}フレット` : '弦は判定なし'}`;
+  if (d2 < S().minVel) return;
+  if (S().midiSound) pluck(d1, 0, d2 / 127);
+  onPlayed({ midi: d1, s, src: 'midi', time: e.timeStamp });
+};
+const setMidiStatus = (cls, text, help) => {
+  const el = $('midiStatus');
+  el.className = `midi-status ${cls}`;
+  if (!help) { el.textContent = text; return; }
+  el.innerHTML = '<details><summary></summary><p></p></details>';
+  el.querySelector('summary').textContent = text;
+  el.querySelector('p').textContent = help;
+};
+const initMidi = async () => {
+  if (!navigator.requestMIDIAccess) {
+    setMidiStatus('off', 'このブラウザはMIDIに対応していません', 'Chrome か Edge で開いてください。指板の図のクリックでは試せます。');
+    return;
+  }
+  try {
+    const access = await navigator.requestMIDIAccess();
+    const update = () => {
+      const inputs = [...access.inputs.values()];
+      inputs.forEach((i) => { i.onmidimessage = onMidiMessage; });
+      if (inputs.length) setMidiStatus('on', `接続中: ${inputs.map((i) => i.name).join('、')}`);
+      else setMidiStatus('off', 'MIDI機器なし', 'MIDIギター（またはギター用MIDIコンバーター）をUSBでつなぐと自動で認識します。それまでは指板の図をクリックして弾けます。');
+    };
+    access.onstatechange = update;
+    update();
+  } catch (e) {
+    if (e.name === 'NotAllowedError' || e.name === 'SecurityError') {
+      setMidiStatus('off', 'MIDIが許可されていません', 'アドレスバー左のアイコン →「サイトの設定」→「MIDI デバイス」を「許可」にして再読み込みしてください。');
+    } else {
+      setMidiStatus('off', 'MIDIを使えません', String(e.message || e));
+      console.error('MIDIの初期化に失敗しました', e);
+    }
+  }
+};
+
+// 指板のクリック
+$('fretboard').addEventListener('click', (e) => {
+  const hit = e.target.closest('.hit');
+  if (!hit || !fbState.clickable) return;
+  const s = Number(hit.dataset.s);
+  const f = Number(hit.dataset.f);
+  const midi = OPEN[s] + f;
+  pluck(midi);
+  onPlayed({ midi, s, src: 'click', time: performance.now() });
+});
+
+// 音名ボタン
+const renderNoteBtns = () => {
+  $('noteBtns').innerHTML = range(0, 11).map((pc) => isNatural(pc)
+    ? `<button type="button" class="nat" data-pc="${pc}">${pcName(pc)}<small>${S().names === 'doremi' ? PC_SHARP[pc] : pcName(pc).replace(/[A-G]/, (m) => DOREMI[m])}</small></button>`
+    : `<button type="button" data-pc="${pc}">${pcName(pc)}<small>${pcName(pc, true)}</small></button>`).join('');
+};
+$('noteBtns').addEventListener('click', (e) => {
+  const b = e.target.closest('button');
+  if (!b) return;
+  ensureAudio();
+  if (run && run.mode === 'fret') flashJudge({ pc: Number(b.dataset.pc) });
+});
+
+document.addEventListener('keydown', (e) => {
+  if (e.target.closest('input, select, textarea')) return;
+  if (e.key === 'Escape' && run) { e.preventDefault(); stopRun(); return; }
+  if (e.key === 'Enter' && !run && !e.target.closest('button')) { e.preventDefault(); startRun(); return; }
+  if (run && run.mode === 'fret' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+    const l = e.key.toLowerCase();
+    if (l.length === 1 && l in NAT_PC) {
+      e.preventDefault();
+      flashJudge({ pc: (NAT_PC[l] + (e.shiftKey ? 1 : 0)) % 12 });
+    }
+  }
+});
+
+$('modeSeg').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) selectMode(b.dataset.v); });
+$('tabPlaySeg').addEventListener('click', (e) => {
+  const b = e.target.closest('button');
+  if (!b || run) return;
+  S().tabPlay = b.dataset.v;
+  saveStore();
+  applyModeVisibility();
+  renderStageInfo();
+});
+$('startBtn').addEventListener('click', startRun);
+$('stopBtn').addEventListener('click', () => stopRun());
+$('skipBtn').addEventListener('click', skipQuestion);
+$('demoBtn').addEventListener('click', playDemo);
+const setBpm = (v) => {
+  const n = Math.max(30, Math.min(200, Math.round(Number(v) || 70)));
+  S().bpm = n;
+  $('bpmInput').value = n;
+  saveStore();
+};
+$('bpmInput').addEventListener('change', (e) => setBpm(e.target.value));
+$('bpmDown').addEventListener('click', () => setBpm(S().bpm - 5));
+$('bpmUp').addEventListener('click', () => setBpm(S().bpm + 5));
+
+// ---- 設定 ----
+const bindSettings = () => {
+  const st = S();
+  $('chanSel').value = st.chan;
+  $('strictStringChk').checked = st.strictString;
+  $('octaveChk').checked = st.octaveFree;
+  $('velInput').value = st.minVel;
+  $('latencyInput').value = st.latency;
+  $('namesSel').value = st.names;
+  $('leftyChk').checked = st.lefty;
+  $('midiSoundChk').checked = st.midiSound;
+  $('volInput').value = st.vol;
+  $('bpmInput').value = st.bpm;
+  const on = (id, ev, fn) => $(id).addEventListener(ev, (e) => { fn(e.target); saveStore(); });
+  on('chanSel', 'change', (t) => { st.chan = t.value; });
+  on('strictStringChk', 'change', (t) => { st.strictString = t.checked; });
+  on('octaveChk', 'change', (t) => { st.octaveFree = t.checked; });
+  on('velInput', 'change', (t) => { st.minVel = Math.max(1, Math.min(100, Number(t.value) || 1)); t.value = st.minVel; });
+  on('latencyInput', 'change', (t) => { st.latency = Math.max(-200, Math.min(300, Number(t.value) || 0)); t.value = st.latency; });
+  on('namesSel', 'change', (t) => { st.names = t.value; renderNoteBtns(); renderStats(); if (!run) renderIdle(); });
+  on('leftyChk', 'change', (t) => { st.lefty = t.checked; renderFretboard(fbState); });
+  on('midiSoundChk', 'change', (t) => { st.midiSound = t.checked; });
+  on('volInput', 'input', (t) => { st.vol = Number(t.value); if (master) master.gain.value = st.vol; });
+  $('resetBtn').addEventListener('click', () => {
+    if (!confirm('成績の記録（正解率・★・続けた日数）を消します。設定は残ります。よろしいですか？')) return;
+    const keep = store.settings;
+    store = { ...defaultStore(), settings: keep };
+    saveStore();
+    renderStageBar();
+    renderStats();
+  });
+};
+
+bindSettings();
+renderNoteBtns();
+applyModeVisibility();
+renderStageBar();
+renderStageInfo();
+renderStats();
+renderIdle();
+initMidi();
+</script>
+</body>
+</html>
