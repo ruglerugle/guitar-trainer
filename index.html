@@ -206,6 +206,19 @@ body[data-view="play"] .tabs, body[data-view="play"] .topbar, body[data-view="pl
 .node .st.none { color: #cddbd7; }
 .node .sub { display: block; font-size: .76rem; color: var(--muted); line-height: 1.4; }
 .node.later .nm { color: #7f9993; }
+.node.locked .dot { background: #edf2f0; color: #9db1ac; box-shadow: 0 4px 0 #dbe5e2; animation: none; font-size: 1rem; }
+.node.locked .nm { color: #7f9993; }
+.node .paid { display: inline-block; margin-left: 6px; padding: 0 7px; border-radius: 99px; background: #fff1d6; color: var(--gold-dark); font-size: .7rem; font-weight: 700; vertical-align: 1px; }
+.plan-status { font-size: .92rem; line-height: 1.6; }
+.plan-btns { justify-content: flex-start; }
+.plan-legal { font-size: .78rem; color: var(--muted); }
+.acct-error { color: var(--ng); font-size: .9rem; }
+.acct-code { font-family: ui-monospace, Consolas, monospace; font-size: 1.2rem; letter-spacing: .05em; padding: 10px; background: var(--accent-soft); border-radius: 12px; text-align: center; }
+#acctDlg p { margin: 0 0 12px; font-size: .94rem; line-height: 1.6; }
+#acctDlg input { width: 100%; margin-bottom: 12px; }
+#acctDlg .links { justify-content: flex-start; margin-top: 4px; }
+.upsell ul { margin: 0 0 14px; padding-left: 1.2em; font-size: .92rem; line-height: 1.7; }
+.toast { position: fixed; left: 50%; bottom: 90px; transform: translateX(-50%); z-index: 50; background: #12302a; color: #fff; padding: 10px 18px; border-radius: 14px; font-size: .92rem; box-shadow: 0 6px 20px rgba(0,0,0,.25); max-width: calc(100vw - 32px); }
 @keyframes pulse { 0%, 100% { box-shadow: 0 4px 0 var(--gold-dark), 0 0 0 6px rgba(255, 176, 32, .25); } 50% { box-shadow: 0 4px 0 var(--gold-dark), 0 0 0 12px rgba(255, 176, 32, .08); } }
 .extras { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
 .tile {
@@ -534,6 +547,12 @@ dialog.sheet-dlg[open] { animation: sheetIn .28s ease-out; }
   <div class="dlg-in">
     <div class="dlg-head"><h2 id="settingsTitle">設定</h2><button type="button" class="icon" data-close aria-label="閉じる">✕</button></div>
     <section class="settings" aria-label="設定">
+      <div class="field wide" id="planField" hidden>
+        <span>プラン</span>
+        <div id="planStatus" class="plan-status"></div>
+        <div id="planBtns" class="controls plan-btns"></div>
+        <div class="plan-legal">申し込むと<a href="https://habatakijuku.com/legal/terms.html" target="_blank" rel="noopener">利用規約</a>に同意したものとみなします。<a href="https://habatakijuku.com/legal/tokushoho.html" target="_blank" rel="noopener">特定商取引法に基づく表記</a>・<a href="https://habatakijuku.com/legal/privacy.html" target="_blank" rel="noopener">プライバシーポリシー</a></div>
+      </div>
       <h3>MIDIギター</h3>
       <div class="field wide">
         <span>接続</span>
@@ -621,6 +640,54 @@ dialog.sheet-dlg[open] { animation: sheetIn .28s ease-out; }
   </div>
 </dialog>
 
+<!-- 有料版の案内（有料のステージを押したとき） -->
+<dialog id="upsellDlg" class="sheet-dlg upsell" aria-labelledby="upsellTitle">
+  <div class="dlg-in">
+    <div class="dlg-head"><h2 id="upsellTitle">🔒 有料版のステージです</h2><button type="button" class="icon" data-close aria-label="閉じる">✕</button></div>
+    <p id="upsellMsg" class="plan-status"></p>
+    <ul>
+      <li>指板・音名・五線譜・TAB譜の全30ステージ（無料は各道の最初の3ステージ）</li>
+      <li>ハイポジション・♯♭・ペンタトニック・アルペジオなど、先のステージ</li>
+      <li>自由練習も全ステージから出題</li>
+    </ul>
+    <div class="controls plan-btns" id="upsellBtns"></div>
+    <p class="plan-legal" style="margin-top:12px">いつでも解約でき、解約しても支払った期間の終わりまで使えます。申し込むと<a href="https://habatakijuku.com/legal/terms.html" target="_blank" rel="noopener">利用規約</a>に同意したものとみなします。<a href="https://habatakijuku.com/legal/tokushoho.html" target="_blank" rel="noopener">特定商取引法に基づく表記</a></p>
+  </div>
+</dialog>
+
+<!-- アカウント（パスキー） -->
+<dialog id="acctDlg" class="sheet-dlg" aria-labelledby="acctTitle">
+  <div class="dlg-in">
+    <div class="dlg-head"><h2 id="acctTitle">ギタートレーナー アカウント</h2><button type="button" class="icon" id="acctClose" aria-label="閉じる">✕</button></div>
+    <p id="acctMsg"></p>
+    <div data-view="register">
+      <p>ニックネーム（画面に出すだけの名前）</p>
+      <input id="acctName" maxlength="30" placeholder="ニックネーム" autocomplete="nickname">
+      <div class="controls"><button id="acctRegisterBtn" type="button">パスキーを作って続ける</button></div>
+      <div class="controls links"><button type="button" class="ghost" data-goto="login">アカウントがある方はログイン</button></div>
+    </div>
+    <div data-view="login">
+      <p>この端末に保存したパスキーでログインします。</p>
+      <div class="controls"><button id="acctLoginBtn" type="button">パスキーでログイン</button></div>
+      <div class="controls links"><button type="button" class="ghost" data-goto="register">はじめての方</button><button type="button" class="ghost" data-goto="recover">パスキーをなくした</button></div>
+    </div>
+    <div data-view="recover">
+      <p>登録したときに表示された復旧コードを入れてください。</p>
+      <input id="acctCode" placeholder="XXXXX-XXXXX-XXXXX-XXXXX" autocomplete="off">
+      <div class="controls"><button id="acctRecoverBtn" type="button">復旧コードでログイン</button></div>
+      <div class="controls links"><button type="button" class="ghost" data-goto="login">戻る</button></div>
+    </div>
+    <div data-view="recovery">
+      <p>復旧コードです。パスキーをなくしたときに使います。<b>この画面でしか表示されない</b>ので、メモして保管してください。</p>
+      <p id="acctRecovery" class="acct-code"></p>
+      <div class="controls"><button id="acctRecoveryDone" type="button">メモしました</button></div>
+    </div>
+    <p id="acctError" class="acct-error" hidden></p>
+  </div>
+</dialog>
+
+<script src="stages.js"></script>
+<script src="billing.js"></script>
 <script>
 'use strict';
 const VF = Vex.Flow;
@@ -686,93 +753,13 @@ const spell = (writtenMidi, flat) => {
 
 // ---- ステージ ----
 const QUESTIONS = 20;
-const LIMIT = { fret: 3000, name: 5000, staff: 4000 }; // 1問の目安（ms）
-const fretStage = (short, desc, strings, lo, hi, natural = false) => ({ short, desc, strings, lo, hi, natural });
-const FRET_STAGES = [
-  fretStage('開放弦', '何も押さえない6本の弦の音。6弦から E A D G B E です。', STRINGS, 0, 0),
-  fretStage('6・5弦', '6弦と5弦の0〜5フレットの、♯♭のない音（幹音）。', [6, 5], 0, 5, true),
-  fretStage('4・3弦', '4弦と3弦の0〜5フレットの幹音。', [4, 3], 0, 5, true),
-  fretStage('2・1弦', '2弦と1弦の0〜5フレットの幹音。', [2, 1], 0, 5, true),
-  fretStage('0〜5F', '全部の弦の0〜5フレット。♯♭の音も出ます。', STRINGS, 0, 5),
-  fretStage('5〜9F', '全部の弦の5〜9フレット。', STRINGS, 5, 9),
-  fretStage('9〜12F', '全部の弦の9〜12フレット。12フレットは開放弦と同じ音名です。', STRINGS, 9, 12),
-  fretStage('全体', '全部の弦の0〜12フレット。', STRINGS, 0, 12),
-];
-const nameStage = (short, desc, strings, natural) => ({ short, desc, strings, natural });
-const NAME_STAGES = [
-  nameStage('6弦', '6弦の上で、言われた音を探して弾きます（♯♭なし）。', [6], true),
-  nameStage('5弦', '5弦の上で、言われた音を探して弾きます。', [5], true),
-  nameStage('4・3弦', '4弦と3弦の幹音。', [4, 3], true),
-  nameStage('2・1弦', '2弦と1弦の幹音。', [2, 1], true),
-  nameStage('全弦', '全部の弦の幹音。', STRINGS, true),
-  nameStage('6・5弦♯♭', '6弦と5弦。♯♭の音も出ます。', [6, 5], false),
-  nameStage('全弦♯♭', '全部の弦。♯♭の音も出ます。', STRINGS, false),
-];
-const naturalsIn = (lo, hi) => range(lo, hi).filter((m) => isNatural(m % 12));
-const staffStage = (short, desc, notes, lo, hi) => ({ short, desc, notes, lo, hi });
-const STAFF_STAGES = [
-  staffStage('1〜3弦', 'ローポジション（0〜3フレット）の1〜3弦の音。', naturalsIn(55, 67), 0, 3),
-  staffStage('4〜6弦', 'ローポジションの4〜6弦の音。加線の多い低い音です。', naturalsIn(40, 53), 0, 3),
-  staffStage('ロー全部', 'ローポジションの全部の幹音。', naturalsIn(40, 67), 0, 4),
-  staffStage('♯♭あり', 'ローポジションで、♯♭の付いた音も出ます。', range(40, 68), 0, 4),
-  staffStage('5ポジション', '人さし指を5フレットに置く形（5〜8フレット）の幹音。', naturalsIn(45, 72), 5, 8),
-  staffStage('ハイポジション', '1〜3弦の高い音（12フレットの E まで）。', naturalsIn(60, 76), 0, 12),
-  staffStage('全音域', '0〜12フレットの全部の音。', range(40, 76), 0, 12),
-];
-const ph = (name, notes) => ({ name, notes });
-const TAB_STAGES = [
-  { short: '開放弦', desc: '左手は押さえず、右手で弾く弦を選ぶ練習。', phrases: [
-    ph('6弦から1弦へ', [[6, 0], [5, 0], [4, 0], [3, 0], [2, 0], [1, 0], [2, 0], [3, 0]]),
-    ph('高い3本', [[1, 0], [2, 0], [3, 0], [2, 0], [1, 0], [3, 0], [2, 0], [1, 0]]),
-    ph('1本とばし', [[6, 0], [4, 0], [5, 0], [3, 0], [4, 0], [2, 0], [3, 0], [1, 0]]),
-    ph('低い3本', [[5, 0], [4, 0], [3, 0], [4, 0], [6, 0], [5, 0], [4, 0], [6, 0]]),
-  ] },
-  { short: '1・2弦', desc: '1弦と2弦の0〜3フレット。', phrases: [
-    ph('1弦を上って2弦へ', [[1, 0], [1, 1], [1, 3], [1, 1], [1, 0], [2, 3], [2, 1], [2, 0]]),
-    ph('2弦から1弦へ', [[2, 0], [2, 1], [2, 3], [1, 0], [1, 1], [1, 3], [1, 1], [1, 0]]),
-    ph('行き来する', [[2, 1], [2, 3], [1, 0], [2, 3], [2, 1], [2, 0], [2, 1], [2, 3]]),
-    ph('ジグザグ', [[1, 3], [1, 1], [2, 3], [1, 0], [2, 1], [2, 3], [2, 0], [2, 1]]),
-  ] },
-  { short: '3・4弦', desc: '3弦と4弦の0〜3フレット。', phrases: [
-    ph('4弦から3弦へ', [[4, 0], [4, 2], [4, 3], [3, 0], [3, 2], [3, 0], [4, 3], [4, 2]]),
-    ph('3弦から4弦へ', [[3, 0], [3, 2], [4, 3], [4, 2], [4, 0], [4, 2], [3, 0], [3, 2]]),
-    ph('交互に', [[4, 2], [3, 0], [4, 3], [3, 2], [4, 0], [3, 0], [4, 2], [4, 0]]),
-    ph('ジグザグ', [[3, 2], [3, 0], [4, 3], [3, 0], [4, 2], [4, 3], [4, 0], [3, 2]]),
-  ] },
-  { short: '5・6弦', desc: '5弦と6弦の0〜3フレット。', phrases: [
-    ph('6弦から5弦へ', [[6, 0], [6, 1], [6, 3], [5, 0], [5, 2], [5, 3], [5, 2], [5, 0]]),
-    ph('5弦から6弦へ', [[5, 3], [5, 2], [5, 0], [6, 3], [6, 1], [6, 0], [6, 1], [6, 3]]),
-    ph('ベースライン', [[6, 0], [6, 3], [5, 0], [5, 2], [6, 3], [5, 0], [5, 3], [5, 2]]),
-    ph('交互に', [[5, 0], [6, 3], [5, 2], [6, 1], [5, 3], [6, 0], [5, 0], [6, 3]]),
-  ] },
-  { short: 'Cメジャー', desc: 'ローポジションのドレミ（Cメジャー・スケール）。', phrases: [
-    ph('上がる', [[5, 3], [4, 0], [4, 2], [4, 3], [3, 0], [3, 2], [2, 0], [2, 1]]),
-    ph('下がる', [[2, 1], [2, 0], [3, 2], [3, 0], [4, 3], [4, 2], [4, 0], [5, 3]]),
-    ph('高いほう', [[2, 1], [2, 3], [1, 0], [1, 1], [1, 3], [1, 1], [1, 0], [2, 3]]),
-    ph('ひとつおき', [[5, 3], [4, 2], [4, 0], [4, 3], [4, 2], [3, 0], [4, 3], [3, 2]]),
-  ] },
-  { short: 'ペンタ', desc: 'Aマイナー・ペンタトニック（5フレットの形）。人さし指は5フレット。', phrases: [
-    ph('上がる', [[6, 5], [6, 8], [5, 5], [5, 7], [4, 5], [4, 7], [3, 5], [3, 7]]),
-    ph('てっぺん', [[3, 7], [2, 5], [2, 8], [1, 5], [1, 8], [1, 5], [2, 8], [2, 5]]),
-    ph('下がる', [[1, 5], [2, 8], [2, 5], [3, 7], [3, 5], [4, 7], [4, 5], [5, 7]]),
-    ph('フレーズ', [[5, 5], [5, 7], [4, 5], [4, 7], [3, 5], [4, 7], [5, 7], [6, 8]]),
-  ] },
-  { short: 'Gメジャー', desc: 'ローポジションのGメジャー・スケール（F♯ に注意）。', phrases: [
-    ph('上がる（低）', [[6, 3], [5, 0], [5, 2], [5, 3], [4, 0], [4, 2], [4, 4], [3, 0]]),
-    ph('上がる（高）', [[3, 0], [3, 2], [2, 0], [2, 1], [2, 3], [1, 0], [1, 2], [1, 3]]),
-    ph('下がる（高）', [[1, 3], [1, 2], [1, 0], [2, 3], [2, 1], [2, 0], [3, 2], [3, 0]]),
-    ph('下がる（低）', [[3, 0], [4, 4], [4, 2], [4, 0], [5, 3], [5, 2], [5, 0], [6, 3]]),
-  ] },
-  { short: 'アルペジオ', desc: 'コードを押さえたまま1音ずつ弾く（アルペジオ）。', phrases: [
-    ph('C', [[5, 3], [4, 2], [3, 0], [2, 1], [1, 0], [2, 1], [3, 0], [4, 2]]),
-    ph('Am', [[5, 0], [4, 2], [3, 2], [2, 1], [1, 0], [2, 1], [3, 2], [4, 2]]),
-    ph('G', [[6, 3], [5, 2], [4, 0], [3, 0], [2, 0], [1, 3], [2, 0], [3, 0]]),
-    ph('Em', [[6, 0], [5, 2], [4, 2], [3, 0], [2, 0], [1, 0], [2, 0], [3, 0]]),
-    ph('D', [[4, 0], [3, 2], [2, 3], [1, 2], [2, 3], [3, 2], [4, 0], [3, 2]]),
-  ] },
-];
-const STAGES = { fret: FRET_STAGES, name: NAME_STAGES, staff: STAFF_STAGES, tab: TAB_STAGES };
 const FREE = -1; // 自由練習
+const LIMIT = { fret: 3000, name: 5000, staff: 4000 }; // 1問の目安（ms）
+// ステージの中身は stages.js（guitar-billing の npm run build-free で作る。有料のステージは locked: true で、有料版は /api/stages で全部に差し替える）
+const STAGES = GT_STAGES;
+const TAB_STAGES = STAGES.tab;
+const isLocked = (m, i) => i !== FREE && !!(STAGES[m][i] && STAGES[m][i].locked);
+const hasLocked = () => Object.values(STAGES).some((l) => l.some((st) => st.locked));
 
 // 出題する項目
 const itemsFor = (mode, stage) => {
@@ -791,7 +778,7 @@ const itemsFor = (mode, stage) => {
 };
 const freeItems = (mode) => {
   const seen = new Map();
-  STAGES[mode].forEach((st) => itemsFor(mode, st).forEach((it) => {
+  STAGES[mode].filter((st) => !st.locked).forEach((st) => itemsFor(mode, st).forEach((it) => {
     if (!seen.has(it.key)) seen.set(it.key, mode === 'staff' ? { ...it, lo: 0, hi: MAX_FRET } : it);
   }));
   return [...seen.values()];
@@ -1107,7 +1094,7 @@ const renderHome = () => {
   $('continueCard').innerHTML = `<span class="kicker">${fresh ? 'まずはここから' : '続きから'}・${MODE_INFO[lm].lane}</span>`
     + `<h2>ステージ${li + 1}　${st.short}</h2><p>${st.desc}</p>`
     + `<span class="stars-line" aria-label="★${bestStars(lm, li)}">${starText(bestStars(lm, li))}</span>`
-    + `<button type="button" class="big" data-play="${lm}:${li}">▶ ${fresh ? 'はじめる' : '続ける'}</button>`;
+    + `<button type="button" class="big" data-play="${lm}:${li}">${isLocked(lm, li) ? '🔒 有料版で続ける' : `▶ ${fresh ? 'はじめる' : '続ける'}`}</button>`;
   // 今日の目標
   const todayN = store.daily.last === today() ? store.daily.today : 0;
   const goal = S().goal;
@@ -1125,23 +1112,24 @@ const renderHome = () => {
     const n = nextStageOf(m);
     const nodes = STAGES[m].map((s, i) => {
       const stars = bestStars(m, i);
-      const cls = stars ? 'done' : i === n ? 'next' : 'later';
+      const lk = s.locked;
+      const cls = lk ? 'locked' : stars ? 'done' : i === n ? 'next' : 'later';
       return `<button type="button" class="node ${cls}" data-play="${m}:${i}" aria-label="${MODE_INFO[m].name} ステージ${i + 1} ${s.short}（★${stars}）">`
-        + `<span class="dot">${stars ? '✓' : i + 1}</span>`
-        + `<span><span class="nm">${s.short}</span><span class="st${stars ? '' : ' none'}">${starText(stars)}</span><span class="sub">${s.desc}</span></span></button>`;
+        + `<span class="dot">${lk ? '🔒' : stars ? '✓' : i + 1}</span>`
+        + `<span><span class="nm">${s.short}${lk ? '<span class="paid">有料版</span>' : ''}</span><span class="st${stars ? '' : ' none'}">${starText(stars)}</span><span class="sub">${s.desc}</span></span></button>`;
     }).join('');
     return `<div class="card lane">${laneHead(m, `<span class="cnt">★ ${starsOf(m)}/${STAGES[m].length * 3}</span>`)}<div class="path">${nodes}</div></div>`;
   }).join('');
   // ほかの練習
-  $('extras').innerHTML = MODES.map((m) => `<button type="button" class="tile" data-play="${m}:${FREE}"><span class="ic" style="background:${MODE_INFO[m].bg}">${MODE_INFO[m].icon}</span><span><b>自由練習・${MODE_INFO[m].name}</b><small>${m === 'tab' ? '全ステージのフレーズからランダムに4つ' : '全ステージから、苦手を多めに。終わりなし'}</small></span></button>`).join('')
+  $('extras').innerHTML = MODES.map((m) => `<button type="button" class="tile" data-play="${m}:${FREE}"><span class="ic" style="background:${MODE_INFO[m].bg}">${MODE_INFO[m].icon}</span><span><b>自由練習・${MODE_INFO[m].name}</b><small>${hasLocked() ? '無料の範囲の' : '全'}${m === 'tab' ? 'ステージのフレーズからランダムに4つ' : 'ステージから、苦手を多めに。終わりなし'}</small></span></button>`).join('')
     + '<button type="button" class="tile" data-open="helpDlg"><span class="ic" style="background:#e8eef6">📖</span><span><b>ギターの楽譜の見方</b><small>弦の番号・フレット・五線譜の「8」・TAB譜</small></span></button>';
 };
 const renderStageInfo = () => {
   const st = stageOf();
   if (!st) {
     $('stageInfo').innerHTML = `<b>自由練習・${MODE_INFO[mode].name}</b>${mode === 'tab'
-      ? '全ステージのフレーズからランダムに4つ。'
-      : '全ステージの中から、間違えやすいもの・時間がかかるものを多めに出します。終わりはありません。'}`;
+      ? `${hasLocked() ? '無料の範囲の' : '全'}ステージのフレーズからランダムに4つ。`
+      : `${hasLocked() ? '無料の範囲の' : '全'}ステージの中から、間違えやすいもの・時間がかかるものを多めに出します。終わりはありません。`}`;
     return;
   }
   let rule = '';
@@ -1400,7 +1388,8 @@ const showResult = (stars, line1, line2, isBest = false) => {
   mk('↺ もう一度', stars ? 'ghost' : '', startRun);
   const list = STAGES[mode];
   if (stars && stageIdx !== FREE && stageIdx < list.length - 1) {
-    mk('次のステージへ →', 'gold', () => { selectStage(stageIdx + 1); startRun(); });
+    if (isLocked(mode, stageIdx + 1)) mk('次のステージへ（有料版）', 'gold', showUpsell);
+    else mk('次のステージへ →', 'gold', () => { selectStage(stageIdx + 1); startRun(); });
   }
   el.appendChild(row);
 };
@@ -1408,7 +1397,7 @@ const showResult = (stars, line1, line2, isBest = false) => {
 // ---- TAB譜 ----
 const shuffle = (a) => { const b = [...a]; for (let i = b.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [b[i], b[j]] = [b[j], b[i]]; } return b; };
 const startTab = () => {
-  const phrases = stageIdx === FREE ? shuffle(TAB_STAGES.flatMap((s) => s.phrases)).slice(0, 4) : stageOf().phrases;
+  const phrases = stageIdx === FREE ? shuffle(TAB_STAGES.filter((s) => !s.locked).flatMap((s) => s.phrases)).slice(0, 4) : stageOf().phrases;
   run = { mode: 'tab', stage: stageIdx, play: S().tabPlay, phrases, pi: 0, ni: 0, status: [], missedNote: false, ok: 0, good: 0, total: 0, extra: 0, t0: performance.now() };
   setRunningUI(true);
   beginPhrase();
@@ -1626,6 +1615,7 @@ const goView = (v) => {
   window.scrollTo(0, 0);
 };
 const openPlay = (m, i) => {
+  if (isLocked(m, i)) { showUpsell(); return; }
   stopRun(false);
   mode = m;
   stageIdx = i;
@@ -1827,6 +1817,7 @@ bindSettings();
 renderNoteBtns();
 goView('home');
 initMidi();
+initBilling();
 </script>
 </body>
 </html>
