@@ -438,7 +438,7 @@ dialog.sheet-dlg[open] { animation: sheetIn .28s ease-out; }
   .judge, .stars span.on, .result .best, .node.next .dot, .result, dialog.sheet-dlg[open], .fb .mark.target.pulse circle { animation: none; }
 }
 </style>
-<link rel="stylesheet" href="studio.css?v=5">
+<link rel="stylesheet" href="studio.css?v=6">
 </head>
 <body data-view="home" data-mode="fret">
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -2093,6 +2093,10 @@ const showSongState = () => {
   const status = sec.bars.map((b) => b.map(() => ''));
   run.events.forEach((e, i) => { if (e.sec === j && run.status[i]) status[e.bar][e.ix] = run.status[i]; });
   renderSongTab(sec, status, ev ? [ev.bar, ev.ix] : null);
+  // 楽譜の枠が縦に狭いので、いまの段が見える位置に寄せる
+  const sheet = $('score').parentElement;
+  const row = $('score').querySelectorAll('svg')[Math.floor((ev ? ev.bar : 0) / 2)];
+  if (row && sheet.scrollHeight > sheet.clientHeight) sheet.scrollTop = Math.max(0, row.offsetTop - $('score').offsetTop);
   $('count').innerHTML = `${run.secs.indexOf(j) + 1}<small> / ${run.secs.length}</small>`;
   const kc = run.countK;
   $('prompt').innerHTML = `<small>${sec.name}</small>${kc != null ? `<span class="big">${kc + 1}</span>` : ''}`;

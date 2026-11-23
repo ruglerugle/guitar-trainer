@@ -312,3 +312,30 @@ dialog.sheet-dlg .dlg-head { position: sticky; top: 0; z-index: 2; background: v
 /* 開いているあいだは後ろのページをスクロールさせない */
 html:has(dialog:modal), html:has(dialog:modal) body { overflow: hidden; }
 .fbx-dlg { overscroll-behavior: contain; }
+
+/* ---- 練習の画面：楽譜と指板を、スクロールせずに一画面に収める ---- */
+/* 見えている高さ（dvh）を使い、飾りを縮めて、楽譜と指板の大きさは保つ */
+body[data-view="play"] .play { min-height: 100vh; min-height: 100dvh; box-sizing: border-box; padding: 6px 12px 10px; }
+body[data-view="play"] .playbar { padding: 2px 0 6px; gap: 10px; }
+body[data-view="play"] .stage { gap: 8px; }
+body[data-view="play"] .prompt { min-height: 1.3em; font-size: 1rem; }
+body[data-view="play"] .prompt .big { font-size: 2rem; line-height: 1.1; }
+body[data-view="play"] .feedback { min-height: 1.4em; font-size: 1rem; }
+body[data-view="play"] .heard, body[data-view="play"] .lap-line { min-height: 0; }
+body[data-view="play"] .kb-note:empty { display: none; }
+body[data-view="play"] .sheet { padding: 8px; border-radius: 14px; }
+/* 曲の楽譜は複数段なので、枠の中でだけ縦にスクロールする（いまの段は JS で見える位置に寄せる） */
+body[data-view="play"][data-mode="song"] .sheet { max-height: 200px; overflow-y: auto; overscroll-behavior: contain; align-items: start; }
+/* 指板は画面の高さに応じて縮める（読める・押せる大きさは下限で保つ） */
+body[data-view="play"] .fb-box { padding: 6px 6px 2px; }
+body[data-view="play"] #fretboard svg { max-height: max(150px, 34vh); max-height: max(150px, 34dvh); }
+/* 横向きのスマホなど、高さが足りないとき：説明・飾りを隠す */
+@media (max-height: 560px) {
+  body[data-view="play"] .play { padding: 4px 10px 6px; }
+  body[data-view="play"] .playbar { padding: 0 0 4px; }
+  body[data-view="play"] .playbar .ttl b { font-size: .9rem; }
+  body[data-view="play"] .prompt small, body[data-view="play"] .kb-note, body[data-view="play"] .heard { display: none; }
+  body[data-view="play"] .stage { gap: 6px; }
+  body[data-view="play"][data-mode="song"] .sheet { max-height: 172px; }
+  body[data-view="play"] #fretboard svg { max-height: max(120px, 38vh); max-height: max(120px, 38dvh); }
+}
