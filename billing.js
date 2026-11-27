@@ -131,7 +131,7 @@ const renderPlan = () => {
     btns = planBtn('buy', `有料版にする（${PRICE_LABEL}）`) + (account.customer ? planBtn('portal', 'お支払いの履歴', 'ghost') : '') + planBtn('security', 'ログインと端末', 'ghost') + planBtn('logout', 'ログアウト', 'ghost');
   } else {
     status = `無料で使えるのは、各道の最初の3ステージです。有料版（${PRICE_LABEL}）にすると、全30ステージを練習できます。`;
-    btns = planBtn('buy', `有料版にする（${PRICE_LABEL}）`) + planBtn('login', 'ログイン（申し込み済みの方）', 'ghost');
+    btns = planBtn('buy', `有料版にする（${PRICE_LABEL}）`) + planBtn('signup', '無料で会員登録') + planBtn('login', 'ログイン（登録済みの方）');
   }
   $('planStatus').textContent = status + (account.signedIn && !account.hasEmail ? '（「ログインと端末」でメールアドレスを登録しておくと、端末をなくしても自分でログインし直せます）' : '');
   $('planBtns').innerHTML = btns;
@@ -144,7 +144,7 @@ const showUpsell = () => {
     ? `${account.name} でログイン中です。有料版（${PRICE_LABEL}）にすると、このステージから先も練習できます。`
     : `有料版（${PRICE_LABEL}）にすると、このステージから先も練習できます。申し込みにはパスキー（指紋・顔・PINでログインするしくみ）を使い、パスワードやメールアドレスは要りません。`;
   $('upsellBtns').innerHTML = planBtn('buy', `有料版にする（${PRICE_LABEL}）`, 'gold')
-    + (account.signedIn ? '' : planBtn('login', 'ログイン（申し込み済みの方）', 'ghost'));
+    + (account.signedIn ? '' : planBtn('signup', '無料で会員登録') + planBtn('login', 'ログイン（登録済みの方）'));
   if (!$('upsellDlg').open) $('upsellDlg').showModal();
 };
 
@@ -407,6 +407,7 @@ const onPlanButton = async (what) => {
   try {
     if ($('upsellDlg').open) $('upsellDlg').close();
     if (what === 'buy') await buyPlan();
+    else if (what === 'signup') { afterSignIn = null; openAcct('register', '無料で会員登録します。パスキー（指紋・顔・PINでログインするしくみ）を使うので、パスワードは要りません。'); }
     else if (what === 'login') { afterSignIn = null; openAcct('login'); }
     else if (what === 'pair') await showPairCode();
     else if (what === 'security') await openSecurity();

@@ -221,6 +221,8 @@ body[data-view="play"] .tabs, body[data-view="play"] .topbar, body[data-view="pl
 .acct-code { font-family: ui-monospace, Consolas, monospace; font-size: 1.2rem; letter-spacing: .05em; padding: 10px; background: var(--accent-soft); border-radius: 12px; text-align: center; }
 #acctDlg p { margin: 0 0 12px; font-size: .94rem; line-height: 1.6; }
 #acctDlg input { width: 100%; margin-bottom: 12px; }
+#acctDlg .acct-first { padding: 10px 12px; border-radius: 10px; background: color-mix(in srgb, currentColor 8%, transparent); display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+#acctDlg .acct-first button { margin: 0; }
 #acctDlg .links { justify-content: flex-start; margin-top: 4px; }
 .upsell ul { margin: 0 0 14px; padding-left: 1.2em; font-size: .92rem; line-height: 1.7; }
 .lap-line { min-height: 1.3em; text-align: center; font-size: .86rem; color: var(--gold); letter-spacing: .04em; }
@@ -741,14 +743,15 @@ body[data-mode="song"] .sheet { max-height: clamp(150px, calc(100vh - 430px), 36
       <input id="acctEmail" type="email" maxlength="254" placeholder="メールアドレス（任意・おすすめ）" autocomplete="email">
       <p class="sec-note">メールアドレスを登録しておくと、端末をなくしても、このメールでログインし直せます（あとからでも登録できます）。</p>
       <div class="controls"><button id="acctRegisterBtn" type="button">パスキーを作って続ける</button></div>
-      <div class="controls links"><button type="button" class="ghost" data-goto="login">アカウントがある方はログイン</button></div>
+      <div class="controls links"><button type="button" class="ghost" data-goto="login">すでにアカウントがある方は ログイン</button></div>
     </div>
     <div data-view="login">
+      <p class="acct-first"><strong>はじめての方は</strong> <button type="button" data-goto="register">こちらから無料で登録</button></p>
       <p>この端末に保存したパスキーでログインします。</p>
       <div class="controls"><button id="acctLoginBtn" type="button">パスキーでログイン</button></div>
       <p style="margin-top:14px">ほかの端末でログイン中なら <button type="button" class="link" data-goto="pairIn">番号を入れて、この端末にパスキーを作る</button></p>
       <p style="margin-top:6px">端末をなくした方は <button type="button" class="link" data-goto="emailLogin">メールでログイン</button>（メールアドレスを登録した方）</p>
-      <div class="controls links"><button type="button" class="ghost" data-goto="register">はじめての方</button><button type="button" class="ghost" data-goto="recover">パスキーをなくした</button></div>
+      <div class="controls links"><button type="button" class="ghost" data-goto="recover">パスキーをなくした</button></div>
     </div>
     <div data-view="pairIn" hidden>
       <p>ログイン中の端末で、設定の「ログインと端末」→「別の端末でログイン」を押すと出る<strong>8けたの番号</strong>を入れてください。番号でログインしたあと、この端末にパスキーを作ります。</p>
@@ -799,7 +802,7 @@ body[data-mode="song"] .sheet { max-height: clamp(150px, calc(100vh - 430px), 36
 
 <script src="stages.js?v=2"></script>
 <script src="band-songs.js?v=12"></script>
-<script src="billing.js?v=6"></script>
+<script src="billing.js?v=7"></script>
 <script src="timing.js?v=2"></script>
 <script src="assess.js?v=1"></script>
 <script src="studio.js?v=1"></script>
